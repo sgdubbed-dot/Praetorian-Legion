@@ -698,7 +698,20 @@ async def report_agent_error(payload: AgentError):
 
 @api.get("/agents", response_model=List[AgentStatus], tags=["agents"])
 async def list_agents():
-    docs = await COLL_AGENTS.find().sort("updated_at", -1).to_list(50)
+    # Ensure all three agent rows exist
+    required = [
+        ("Praefectus", "green"),
+        ("Explorator", "green"),
+        ("Legatus", "green"),
+    ]
+    existing = await COLL_AGENTS.find().to_list(10)
+    index = {d.get("agent_name"): d for d in existing}
+    for name, default_color in required:
+        if name not in index:
+            await insert_with_id(COLL_AGENTS, AgentStatus(agent_name=name, status_light=("yellow" if name=="Legatus" else default_color), last_activity=now_iso()).model_dump())
+    # Apply research_only posture rule for Legatus
+    await ensure_legatus_idle_if_research_only_exists()
+    docs = await COLL_AGENTS.find().sort("agent_name", 1).to_list(50)
     return [{k: v for k, v in d.items() if k != "_id"} for d in docs]
 
 # Guardrails
