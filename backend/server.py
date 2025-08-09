@@ -786,7 +786,15 @@ async def list_agents():
                 await log_event("agent_status_changed", "backend/api", {"agent_name": "Legatus", "status_light": leg_status})
 
     docs = await COLL_AGENTS.find().sort("agent_name", 1).to_list(50)
-    return [{k: v for k, v in d.items() if k != "_id"} for d in docs]
+    # Normalize outgoing timestamps to Phoenix
+    cleaned = []
+    for d in docs:
+        d.pop("_id", None)
+        for k in ("last_activity", "created_at", "updated_at", "next_retry_at"):
+            if d.get(k):
+                d[k] = to_phoenix(d[k])
+        cleaned.append(d)
+    return cleaned
 
 # Guardrails
 @api.get("/guardrails", tags=["guardrails"])
