@@ -697,12 +697,17 @@ async def download_export(export_id: str):
 # Agents
 @api.post("/agents/status", response_model=AgentStatus, tags=["agents"])
 async def upsert_agent_status(payload: AgentStatus):
+    # Normalize any inbound timestamps to Phoenix for storage consistency
+    norm = payload.model_dump()
+    for k in ("last_activity", "created_at", "updated_at", "next_retry_at"):
+        if k in norm and norm[k]:
+            norm[k] = to_phoenix(norm[k])
     existing = await COLL_AGENTS.find_one({"agent_name": payload.agent_name})
     if existing:
-        await update_by_id(COLL_AGENTS, existing["_id"], payload.model_dump(exclude={"id"}))
+        await update_by_id(COLL_AGENTS, existing["_id"], {k: v for k, v in norm.items() if k != "id"})
         doc = await get_by_id(COLL_AGENTS, existing["_id"])
     else:
-        doc = await insert_with_id(COLL_AGENTS, payload.model_dump())
+        doc = await insert_with_id(COLL_AGENTS, norm)
     await log_event("agent_status_changed", "backend/api", {"agent_name": doc["agent_name"], "status_light": doc.get("status_light")})
     return doc
 
