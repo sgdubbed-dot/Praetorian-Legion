@@ -170,6 +170,11 @@ class Signal(BaseModel):
 class EngagementEntry(BaseModel):
     model_config = ConfigDict(extra="allow")
     channel: Optional[str] = None
+
+class AgentRetryCheck(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    agent_name: str
+
     content: Optional[str] = None
     timestamp: str = Field(default_factory=now_iso)
     outcome: Optional[str] = None
