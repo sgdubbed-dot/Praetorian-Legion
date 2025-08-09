@@ -59,13 +59,13 @@ async def insert_with_id(coll, doc: Dict[str, Any]) -> Dict[str, Any]:
     doc.pop("_id", None)
     return doc
 
-async def update_by_id(coll, _id: str, fields: Dict[str, Any]) -&gt; int:
+async def update_by_id(coll, _id: str, fields: Dict[str, Any]) -> int:
     fields = {k: v for k, v in fields.items() if v is not None}
     fields["updated_at"] = now_iso()
     res = await coll.update_one({"_id": _id}, {"$set": fields})
     return res.modified_count
 
-async def get_by_id(coll, _id: str) -&gt; Optional[Dict[str, Any]]:
+async def get_by_id(coll, _id: str) -> Optional[Dict[str, Any]]:
     doc = await coll.find_one({"_id": _id})
     if doc:
         doc.pop("_id", None)
