@@ -577,10 +577,19 @@ async def list_events(limit: int = 200):
 app.include_router(api)
 
 # CORS (origins from env)
+# CORS configuration with safe wildcard handling
+_cors_origins_raw = os.environ.get("CORS_ORIGINS", "*")
+_cors_origins = [o.strip() for o in _cors_origins_raw.split(",") if o.strip()]
+_allow_credentials = True
+if "*" in _cors_origins:
+    # Starlette disallows '*' with credentials. To ensure CORS works in dev with
+    # wildcard origins (e.g., localhost:3000 -> preview domain), disable credentials.
+    _allow_credentials = False
+
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_credentials=_allow_credentials,
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
