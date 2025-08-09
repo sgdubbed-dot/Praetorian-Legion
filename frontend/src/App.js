@@ -1,51 +1,60 @@
-import { useEffect } from "react";
+import React from "react";
+import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import "./App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import MissionControl from "./pages/MissionControl";
+import Missions from "./pages/Missions";
+import Agents from "./pages/Agents";
+import Forums from "./pages/Forums";
+import Rolodex from "./pages/Rolodex";
+import HotLeads from "./pages/HotLeads";
+import Guardrails from "./pages/Guardrails";
+import Exports from "./pages/Exports";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
-  return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
+const NavBar = () => (
+  <div className="w-full bg-neutral-900 text-white">
+    <div className="max-w-6xl mx-auto flex flex-wrap gap-3 p-3 text-sm">
+      {[
+        ["Mission Control", "/"],
+        ["Missions", "/missions"],
+        ["Forums", "/forums"],
+        ["Rolodex", "/rolodex"],
+        ["Hot Leads", "/hotleads"],
+        ["Agents", "/agents"],
+        ["Guardrails", "/guardrails"],
+        ["Exports", "/exports"],
+      ].map(([label, path]) => (
+        <NavLink
+          key={path}
+          to={path}
+          end
+          className={({ isActive }) =>
+            `px-3 py-1 rounded ${isActive ? "bg-blue-600" : "hover:bg-neutral-800"}`
+          }
         >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
+          {label}
+        </NavLink>
+      ))}
     </div>
-  );
-};
+  </div>
+);
 
 function App() {
   return (
-    <div className="App">
+    <div className="min-h-screen bg-neutral-100">
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
+        <NavBar />
+        <div className="max-w-6xl mx-auto p-4">
+          <Routes>
+            <Route path="/" element={<MissionControl />} />
+            <Route path="/missions" element={<Missions />} />
+            <Route path="/forums" element={<Forums />} />
+            <Route path="/rolodex" element={<Rolodex />} />
+            <Route path="/hotleads" element={<HotLeads />} />
+            <Route path="/agents" element={<Agents />} />
+            <Route path="/guardrails" element={<Guardrails />} />
+            <Route path="/exports" element={<Exports />} />
+          </Routes>
+        </div>
       </BrowserRouter>
     </div>
   );
