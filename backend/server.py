@@ -281,6 +281,7 @@ class AgentStatus(BaseModel):
     last_activity: Optional[str] = None
     activity_stream: List[Dict[str, Any]] = Field(default_factory=list)
     error_state: Optional[str] = None
+    next_retry_at: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
