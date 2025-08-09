@@ -728,21 +728,22 @@ async def list_agents():
     # Auto-reset Explorator error state if retry time has passed
     now_dt = datetime.now(tz=PHOENIX_TZ)
     expl = await COLL_AGENTS.find_one({"agent_name": "Explorator"})
-    if expl and expl.get("status_light") == "red" and expl.get("next_retry_at"):
+    if expl and expl.get("next_retry_at"):
         try:
             retry_dt = datetime.fromisoformat(expl["next_retry_at"])
             if retry_dt <= now_dt:
                 # Determine new status based on active missions
                 active_missions = await COLL_MISSIONS.count_documents({"state": {"$in": ["scanning","engaging","escalating"]}})
-                new_status = "green" if active_missions > 0 else "yellow"
-                await update_by_id(COLL_AGENTS, expl["_id"], {
-                    "status_light": new_status,
-                    "error_state": None,
-                    "next_retry_at": None,
-                    "last_activity": now_iso(),
-                })
+                desired_status = "green" if active_missions > 0 else "yellow"
+                update_fields: Dict[str, Any] = {"last_activity": now_iso(), "error_state": None, "next_retry_at": None}
+                # If currently red, also flip to desired status
+                if expl.get("status_light") == "red":
+                    update_fields["status_light"] = desired_status
+                await update_by_id(COLL_AGENTS, expl["_id"], update_fields)
                 await log_event("agent_error_cleared", "backend/api", {"agent_name": "Explorator"})
-                await log_event("agent_status_changed", "backend/api", {"agent_name": "Explorator", "status_light": new_status})
+                # Emit status_changed only if we actually changed status color
+                if expl.get("status_light") == "red":
+                    await log_event("agent_status_changed", "backend/api", {"agent_name": "Explorator", "status_light": desired_status})
         except Exception:
             # If parsing fails, ignore
             pass
