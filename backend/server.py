@@ -64,9 +64,16 @@ async def insert_with_id(coll, doc: Dict[str, Any]) -> Dict[str, Any]:
     return doc
 
 async def update_by_id(coll, _id: str, fields: Dict[str, Any]) -> int:
-    fields = {k: v for k, v in fields.items() if v is not None}
-    fields["updated_at"] = now_iso()
-    res = await coll.update_one({"_id": _id}, {"$set": fields})
+    # Support explicit field clearing when value is None (use $unset)
+    set_fields = {k: v for k, v in fields.items() if v is not None}
+    unset_fields = {k: "" for k, v in fields.items() if v is None}
+    set_fields["updated_at"] = now_iso()
+    update_doc: Dict[str, Any] = {}
+    if set_fields:
+        update_doc["$set"] = set_fields
+    if unset_fields:
+        update_doc["$unset"] = unset_fields
+    res = await coll.update_one({"_id": _id}, update_doc)
     return res.modified_count
 
 async def get_by_id(coll, _id: str) -> Optional[Dict[str, Any]]:
