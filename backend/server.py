@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 from zoneinfo import ZoneInfo
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import uuid
 import logging
@@ -408,7 +408,6 @@ async def get_forum(forum_id: str):
 
 @api.patch("/forums/{forum_id}", response_model=Forum, tags=["forums"])
 async def update_forum(forum_id: str, payload: ForumUpdate):
-    # Determine if rule_profile changed to log specific event
     existing = await get_by_id(COLL_FORUMS, forum_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Forum not found")
@@ -459,7 +458,6 @@ async def update_prospect(prospect_id: str, payload: ProspectUpdate):
 # Hot Leads
 @api.post("/hotleads", response_model=HotLead, tags=["hotleads"])
 async def create_hot_lead(payload: HotLeadCreate):
-    # Ensure prospect exists
     p = await get_by_id(COLL_ROLODEX, payload.prospect_id)
     if not p:
         raise HTTPException(status_code=400, detail="prospect_id not found")
@@ -496,7 +494,6 @@ async def update_hot_lead_status(hotlead_id: str, payload: HotLeadStatusUpdate):
     }
     await log_event(event_map[payload.status], "backend/api", {"hotlead_id": hotlead_id})
 
-    # Append engagement_history note on Prospect when approved
     if payload.status == "approved":
         p = await get_by_id(COLL_ROLODEX, doc["prospect_id"])  # type: ignore
         if p:
@@ -528,7 +525,6 @@ class MCReply(BaseModel):
 @api.post("/mission_control/message", response_model=MCReply, tags=["mission_control"])
 async def mission_control_message(payload: MCMessage):
     text = payload.text.strip()
-    # naive parsing
     wants_research = any(k in text.lower() for k in ["research", "map", "discover"])
     posture = "research_only" if wants_research else "help_only"
     draft = payload.draft or {
@@ -550,21 +546,17 @@ async def mission_control_message(payload: MCMessage):
             "Any sensitive topics to avoid?",
         ],
     )
-    # log events
     await log_event("mission_draft_submitted", "Praefectus", {"draft": draft})
     await log_event("approval_requested", "Praefectus", {"draft": draft})
 
-    # append activity for Praefectus (human + ai)
     await append_agent_activity("Praefectus", {"who": "human", "content": text, "timestamp": now_iso()})
     await append_agent_activity("Praefectus", {"who": "Praefectus", "content": f"Draft proposed: {draft['title']}", "timestamp": now_iso()})
 
-    # optional auto-actions
     if payload.reject:
         await log_event("approval_rejected", "backend/api", {"draft": draft})
         return reply
 
     if payload.approve:
-        # create mission
         created = await create_mission(MissionCreate(**{
             "title": draft.get("title", "New Mission"),
             "objective": draft.get("objective", text or "Explore"),
@@ -572,7 +564,6 @@ async def mission_control_message(payload: MCMessage):
             "state": "draft",
         }))
         await log_event("approval_granted", "backend/api", {"mission_id": created["id"]})
-        # If research_only, auto-discover a couple forums (Explorator behavior)
         if created.get("posture") == "research_only":
             samples = [
                 ForumCreate(platform="Reddit", name="r/agentops", url="https://reddit.com/r/agentops", rule_profile="strict_help_only", topic_tags=["agents","ops"]),
@@ -583,13 +574,11 @@ async def mission_control_message(payload: MCMessage):
                     await create_forum(f)
                 except Exception:
                     pass
-        # Ensure Legatus idle when research_only exists
         await ensure_legatus_idle_if_research_only_exists()
     return reply
 
 # Exports (CSV generation + download)
 async def filter_prospects_for_export(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
-    # naive filtering in Python for Phase 1
     docs = await COLL_ROLODEX.find().to_list(5000)
     rows = []
     for d in docs:
@@ -622,7 +611,6 @@ async def create_export_recipe(payload: ExportRecipeCreate):
 
 @api.post("/exports/generate", response_model=Export, tags=["exports"])
 async def generate_export(payload: ExportGenerate):
-    # Find or create recipe
     recipe = await COLL_EXPORTS.find_one({"recipe_name": payload.recipe_name})
     if not recipe:
         exp = Export(recipe_name=payload.recipe_name)
@@ -630,7 +618,6 @@ async def generate_export(payload: ExportGenerate):
     else:
         recipe.pop("_id", None)
     rows = await filter_prospects_for_export(recipe.get("filter_spec", {}))
-    # build CSV
     output = io.StringIO()
     writer = csv.writer(output)
     headers = [
@@ -639,16 +626,11 @@ async def generate_export(payload: ExportGenerate):
     writer.writerow(headers)
     for r in rows:
         writer.writerow([
-            r.get("id"),
-            r.get("name_or_alias"),
-            r.get("priority_state"),
-            r.get("company"),
-            r.get("role"),
+            r.get("id"), r.get("name_or_alias"), r.get("priority_state"), r.get("company"), r.get("role"),
             (r.get("handles") or {}).get("linkedin",""),
             ";".join(r.get("platform_tags") or []),
             ";".join(r.get("mission_tags") or []),
-            r.get("created_at"),
-            r.get("updated_at"),
+            r.get("created_at"), r.get("updated_at"),
         ])
     csv_data = output.getvalue()
     update = {
@@ -665,7 +647,6 @@ async def generate_export(payload: ExportGenerate):
 @api.get("/exports", response_model=List[Export], tags=["exports"])
 async def list_exports():
     docs = await COLL_EXPORTS.find().sort("generated_at", -1).to_list(200)
-    # strip csv_data from listing
     cleaned = []
     for d in docs:
         d.pop("_id", None)
@@ -679,15 +660,12 @@ async def download_export(export_id: str):
     if not doc:
         raise HTTPException(status_code=404, detail="Export not found")
     csv_data = doc.get("csv_data", "")
-    headers = {
-        "Content-Disposition": f"attachment; filename=export_{export_id}.csv"
-    }
+    headers = {"Content-Disposition": f"attachment; filename=export_{export_id}.csv"}
     return Response(content=csv_data, media_type="text/csv", headers=headers)
 
 # Agents
 @api.post("/agents/status", response_model=AgentStatus, tags=["agents"])
 async def upsert_agent_status(payload: AgentStatus):
-    # Upsert on agent_name
     existing = await COLL_AGENTS.find_one({"agent_name": payload.agent_name})
     if existing:
         await update_by_id(COLL_AGENTS, existing["_id"], payload.model_dump(exclude={"id"}))
@@ -707,7 +685,6 @@ class AgentError(BaseModel):
 async def report_agent_error(payload: AgentError):
     existing = await COLL_AGENTS.find_one({"agent_name": payload.agent_name})
     if not existing:
-        # initialize record
         base = AgentStatus(agent_name=payload.agent_name, status_light="red", error_state=payload.error_state, last_activity=now_iso())
         doc = await insert_with_id(COLL_AGENTS, base.model_dump())
     else:
@@ -731,7 +708,6 @@ async def list_guardrails():
 
 @api.post("/guardrails", tags=["guardrails"])
 async def create_guardrail(payload: Dict[str, Any]):
-    # Ensure timestamps
     payload = {**payload}
     payload.setdefault("created_at", now_iso())
     payload.setdefault("updated_at", payload["created_at"])
@@ -754,7 +730,6 @@ async def update_guardrail(guardrail_id: str, payload: Dict[str, Any]):
 @api.get("/events", tags=["events"])
 async def list_events(limit: int = 200, mission_id: Optional[str] = None, hotlead_id: Optional[str] = None, prospect_id: Optional[str] = None, agent_name: Optional[str] = None):
     q: Dict[str, Any] = {}
-    # we stored identifiers inside payload keys in our log_event usage
     if mission_id:
         q["payload.mission_id"] = mission_id
     if hotlead_id:
@@ -767,17 +742,100 @@ async def list_events(limit: int = 200, mission_id: Optional[str] = None, hotlea
     docs = await cursor.to_list(limit)
     return [{k: v for k, v in d.items() if k != "_id"} for d in docs]
 
+# ---------- Scenario Helper Endpoints (Milestone C) ----------
+class ScenarioResult(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    ok: bool = True
+    message: str
+    mission_id: Optional[str] = None
+
+@api.post("/scenarios/strict_rule_mission", response_model=ScenarioResult, tags=["scenarios"])
+async def scenario_strict_rule_mission():
+    # Create a strict-help mission, seed forums (>=5) and some prospects
+    m = await create_mission(MissionCreate(
+        title="Map senior agent-ops engineers in strict forums",
+        objective="Discover and profile at least five strict-help forums; add initial prospects",
+        posture="help_only",
+        state="scanning",
+    ))
+    forum_specs = [
+        ("StackOverflow", "agentops", "https://stackoverflow.com/tags/agentops", ["agentops","observability"]),
+        ("Reddit", "r/agentops", "https://reddit.com/r/agentops", ["agents","ops"]),
+        ("Discord", "AgentOps Guild", "https://discord.gg/agentops", ["guild"]),
+        ("GitHub", "AgentOps Discussions", "https://github.com/topics/agentops", ["discussions"]),
+        ("Hacker News", "AgentOps", "https://news.ycombinator.com", ["hn"]) ,
+    ]
+    count_forums = 0
+    for plat, name, url, tags in forum_specs:
+        await create_forum(ForumCreate(platform=plat, name=name, url=url, rule_profile="strict_help_only", topic_tags=tags))
+        count_forums += 1
+    # Add a couple prospects
+    p1 = await create_prospect(ProspectCreate(name_or_alias="Alex Doe", handles={"linkedin": "alexdoe"}, priority_state="warm"))
+    p2 = await create_prospect(ProspectCreate(name_or_alias="Sam Lee", handles={"github": "samlee"}, priority_state="cold"))
+    # Update mission counters
+    counters = m["counters"]
+    counters["forums_found"] += count_forums
+    counters["prospects_added"] += 2
+    await update_by_id(COLL_MISSIONS, m["id"], {"counters": counters})
+    return ScenarioResult(ok=True, message="Strict-rule mission seeded with forums and prospects", mission_id=m["id"]).model_dump()
+
+@api.post("/scenarios/open_forum_plan", response_model=ScenarioResult, tags=["scenarios"])
+async def scenario_open_forum_plan():
+    m = await create_mission(MissionCreate(
+        title="Explore agent observability chatter",
+        objective="Scan X/LinkedIn for agent observability and draft engagement plan",
+        posture="help_plus_soft_marketing",
+        state="scanning",
+        insights=["Risks: platform policy changes, perception of marketing"],
+    ))
+    # Seed open forums
+    await create_forum(ForumCreate(platform="X", name="#agentobservability", url="https://x.com/search?q=agent%20observability", rule_profile="open_soft_marketing", topic_tags=["agents","observability"]))
+    await create_forum(ForumCreate(platform="LinkedIn", name="Agent Observability", url="https://www.linkedin.com/search/results/content/?keywords=agent%20observability", rule_profile="open_soft_marketing", topic_tags=["agents","observability"]))
+    counters = m["counters"]
+    counters["forums_found"] += 2
+    await update_by_id(COLL_MISSIONS, m["id"], {"counters": counters, "insights": m.get("insights", []) + ["Initial platforms prioritized: X & LinkedIn"]})
+    await log_event("approval_requested", "Praefectus", {"mission_id": m["id"], "posture": "help_plus_soft_marketing"})
+    return ScenarioResult(ok=True, message="Open-forum plan drafted and forums added", mission_id=m["id"]).model_dump()
+
+@api.post("/scenarios/generate_hotlead", tags=["scenarios"])
+async def scenario_generate_hotlead():
+    # Find or create a prospect with a buying signal
+    prospects = await COLL_ROLODEX.find().to_list(10)
+    pid = None
+    if prospects:
+        pid = prospects[0].get("_id") or prospects[0].get("id")
+    else:
+        p = await create_prospect(ProspectCreate(name_or_alias="Jordan Kim", handles={"linkedin":"jordank"}, priority_state="hot", signals=[Signal(type="post", quote="We need agent observability now", link="https://example.com").model_dump()]))
+        pid = p["id"]
+    hl = await create_hot_lead(HotLeadCreate(
+        prospect_id=str(pid),
+        evidence=[Evidence(quote="Strong buying signal", link="https://example.com/thread")],
+        proposed_script="Hi! It sounds like you're evaluating observability for agents. Happy to share a short checklist and a 10‑min call if helpful.",
+        suggested_actions=["prepare brief case study", "offer trial"],
+    ))
+    return {"ok": True, "hotlead_id": hl["id"]}
+
+@api.post("/scenarios/export_shortcut", tags=["scenarios"])
+async def scenario_export_shortcut():
+    name = "Warm+Hot last 7 days with LinkedIn handle"
+    await create_export_recipe(ExportRecipeCreate(recipe_name=name, filter_spec={"priority_state":["warm","hot"], "has_linkedin": True}))
+    doc = await generate_export(ExportGenerate(recipe_name=name))
+    return {"ok": True, "export_id": doc["id"], "file_url": doc.get("file_url")}
+
+@api.post("/scenarios/agent_error_retry", tags=["scenarios"])
+async def scenario_agent_error_retry():
+    next_retry = (datetime.now(tz=PHOENIX_TZ) + timedelta(minutes=5)).isoformat()
+    doc = await report_agent_error(AgentError(agent_name="Explorator", error_state="crawl_timeout", next_retry_at=next_retry))
+    return {"ok": True, "agent": doc}
+
 # Mount router
 app.include_router(api)
 
 # CORS (origins from env)
-# CORS configuration with safe wildcard handling
 _cors_origins_raw = os.environ.get("CORS_ORIGINS", "*")
 _cors_origins = [o.strip() for o in _cors_origins_raw.split(",") if o.strip()]
 _allow_credentials = True
 if "*" in _cors_origins:
-    # Starlette disallows '*' with credentials. To ensure CORS works in dev with
-    # wildcard origins (e.g., localhost:3000 -> preview domain), disable credentials.
     _allow_credentials = False
 
 app.add_middleware(
@@ -788,11 +846,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# Shutdown hook
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
