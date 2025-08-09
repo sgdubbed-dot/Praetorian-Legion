@@ -882,9 +882,14 @@ async def scenario_export_shortcut():
     doc = await generate_export(ExportGenerate(recipe_name=name))
     return {"ok": True, "export_id": doc["id"], "file_url": doc.get("file_url")}
 
+class RetryWindow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    minutes: Optional[int] = 5
+
 @api.post("/scenarios/agent_error_retry", tags=["scenarios"])
-async def scenario_agent_error_retry():
-    next_retry = (datetime.now(tz=PHOENIX_TZ) + timedelta(minutes=5)).isoformat()
+async def scenario_agent_error_retry(payload: RetryWindow | None = None):
+    minutes = (payload.minutes if payload and payload.minutes is not None else 5)
+    next_retry = (datetime.now(tz=PHOENIX_TZ) + timedelta(minutes=minutes)).isoformat()
     doc = await report_agent_error(AgentError(agent_name="Explorator", error_state="crawl_timeout", next_retry_at=next_retry))
     return {"ok": True, "agent": doc}
 
