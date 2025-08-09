@@ -33,7 +33,10 @@ def now_iso() -> str:
     return datetime.now(tz=PHOENIX_TZ).isoformat()
 
 # ID helper
-new_id = lambda: str(uuid.uuid4())
+# Flake8 E731: do not assign a lambda expression; define a function instead
+
+def new_id() -> str:
+    return str(uuid.uuid4())
 
 # Collections (TitleCase matching tabs where applicable)
 COLL_MISSIONS = db["Missions"]
