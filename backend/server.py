@@ -45,7 +45,7 @@ COLL_GUARDRAILS = db["Guardrails"]
 COLL_EVENTS = db["Events"]
 
 # Mongo helpers (avoid ObjectID, use UUID string as _id)
-async def insert_with_id(coll, doc: Dict[str, Any]) -&gt; Dict[str, Any]:
+async def insert_with_id(coll, doc: Dict[str, Any]) -> Dict[str, Any]:
     if "id" not in doc:
         doc["id"] = new_id()
     # timestamps (Phoenix)
