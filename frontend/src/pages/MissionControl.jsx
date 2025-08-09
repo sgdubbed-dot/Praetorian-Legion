@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { api, phoenixTime } from "../api";
 
+const postureLabel = (p) => (p === "research_only" ? "Research Mode" : p);
+
 export default function MissionControl() {
   const [praefectus, setPraefectus] = useState(null);
   const [chatInput, setChatInput] = useState("");
@@ -8,6 +10,7 @@ export default function MissionControl() {
   const [creating, setCreating] = useState(false);
   const [missionForm, setMissionForm] = useState({ title: "", objective: "", posture: "help_only" });
   const [mcReply, setMcReply] = useState(null);
+  const [guardrails, setGuardrails] = useState([]);
 
   const refresh = async () => {
     try {
@@ -16,6 +19,8 @@ export default function MissionControl() {
       setPraefectus(pf);
       const hls = (await api.get("/hotleads")).data.filter((h) => h.status === "pending_approval");
       setHotLeads(hls);
+      const gs = (await api.get("/guardrails")).data;
+      setGuardrails(gs);
     } catch (e) {
       console.error("PAGE ERROR:", e?.name || e?.message || e);
     }
@@ -26,6 +31,13 @@ export default function MissionControl() {
     const id = setInterval(refresh, 5000);
     return () => clearInterval(id);
   }, []);
+
+  const postureConflict = useMemo(() => {
+    // Warn if missionForm.posture conflicts with any posture guardrail (e.g., research_only rules exist but posture is marketing)
+    const hasResearchOnly = guardrails.some((g) => g.default_posture === "research_only" || (g.type === "posture" && g.value === "research_only"));
+    if (hasResearchOnly && missionForm.posture === "help_plus_soft_marketing") return "Guardrail conflict: Research-only in effect. No public engagement allowed.";
+    return null;
+  }, [guardrails, missionForm.posture]);
 
   const messages = useMemo(() => praefectus?.activity_stream ?? [], [praefectus]);
 
@@ -52,7 +64,7 @@ export default function MissionControl() {
     try {
       const res = await api.post("/mission_control/message", { text: human.content });
       setMcReply(res.data);
-      await appendPraefectusActivity({ who: "Praefectus", content: `Understanding: ${res.data.understanding}`, timestamp: new Date().toISOString() });
+      await appendPraefectusActivity({ who: "Praefectus", content: `Understanding: ${res.data.understanding}` , timestamp: new Date().toISOString() });
       await appendPraefectusActivity({ who: "Praefectus", content: `Recommended Draft: ${res.data.recommended_mission_draft?.title}` , timestamp: new Date().toISOString() });
     } catch (e) {
       console.error("PAGE ERROR:", e?.name || e?.message || e);
@@ -114,7 +126,7 @@ export default function MissionControl() {
                 {mcReply.critique_options.map((c, i) => <li key={i}>{c}</li>)}
               </ul>
             </div>
-            <div className="text-sm mb-1"><span className="font-medium">Recommended Draft:</span> <code>{mcReply.recommended_mission_draft?.title}</code> — posture {mcReply.recommended_mission_draft?.posture}</div>
+            <div className="text-sm mb-1"><span className="font-medium">Recommended Draft:</span> <code>{mcReply.recommended_mission_draft?.title}</code> — posture {postureLabel(mcReply.recommended_mission_draft?.posture)}</div>
             <div className="text-sm mb-3"><span className="font-medium">Open Questions:</span>
               <ul className="list-disc pl-5">
                 {mcReply.open_questions.map((q, i) => <li key={i}>{q}</li>)}
@@ -147,6 +159,7 @@ export default function MissionControl() {
 
         <div>
           <h3 className="font-semibold mb-2">Draft Mission</h3>
+          {postureConflict && (<div className="mb-2 p-2 bg-yellow-100 text-yellow-800 rounded text-sm">{postureConflict}</div>)}
           <div className="space-y-2">
             <input className="w-full border rounded px-2 py-1" placeholder="Title" value={missionForm.title} onChange={(e) => setMissionForm({ ...missionForm, title: e.target.value })} />
             <textarea className="w-full border rounded px-2 py-1" placeholder="Objective" value={missionForm.objective} onChange={(e) => setMissionForm({ ...missionForm, objective: e.target.value })} />
@@ -155,6 +168,7 @@ export default function MissionControl() {
               <option value="help_plus_soft_marketing">help_plus_soft_marketing</option>
               <option value="research_only">research_only</option>
             </select>
+            <div className="text-xs text-neutral-600">Selected: {postureLabel(missionForm.posture)}</div>
             <button disabled={creating} onClick={createMission} className="px-3 py-1 bg-neutral-800 text-white rounded text-sm">{creating ? "Creating..." : "Create Mission"}</button>
           </div>
         </div>

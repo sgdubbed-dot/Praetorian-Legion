@@ -6,12 +6,15 @@ export default function HotLeadDetail() {
   const { id } = useParams();
   const [h, setH] = useState(null);
   const [prospect, setProspect] = useState(null);
+  const [events, setEvents] = useState([]);
 
   const refresh = async () => {
     const d = (await api.get(`/hotleads/${id}`)).data;
     setH(d);
     const p = (await api.get(`/prospects/${d.prospect_id}`)).data;
     setProspect(p);
+    const ev = (await api.get(`/events`, { params: { hotlead_id: id, limit: 50 } })).data;
+    setEvents(ev);
   };
 
   useEffect(() => { refresh(); }, [id]);
@@ -46,6 +49,17 @@ export default function HotLeadDetail() {
         <div className="font-semibold mt-3">Suggested Actions</div>
         <ul className="list-disc pl-5 text-sm">
           {(h.suggested_actions||[]).map((a, i) => <li key={i}>{a}</li>)}
+        </ul>
+      </div>
+
+      <div className="bg-white rounded shadow p-4">
+        <div className="font-semibold mb-2">Status History</div>
+        <ul className="text-sm space-y-1">
+          {events.filter(e => ["hotlead_approved","hotlead_deferred","hotlead_removed"].includes(e.event_name)).map((e) => (
+            <li key={e.id} className="border rounded p-2">
+              <div className="text-xs text-neutral-500">{phoenixTime(e.timestamp)} — {e.event_name}</div>
+            </li>
+          ))}
         </ul>
       </div>
     </div>

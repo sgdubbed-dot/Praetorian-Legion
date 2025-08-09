@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { api, phoenixTime } from "../api";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+
+const postureLabel = (p) => (p === "research_only" ? "Research Mode" : p);
 
 export default function Missions() {
   const [items, setItems] = useState([]);
@@ -68,7 +70,7 @@ export default function Missions() {
               <tr key={m.id} className="border-t hover:bg-neutral-50 cursor-pointer" onClick={() => nav(`/missions/${m.id}`)}>
                 <td className="p-2">{m.title}</td>
                 <td className="p-2">{m.state}</td>
-                <td className="p-2">{m.posture}</td>
+                <td className="p-2">{postureLabel(m.posture)}</td>
                 <td className="p-2">F:{m.counters?.forums_found||0} P:{m.counters?.prospects_added||0} H:{m.counters?.hot_leads||0}</td>
                 <td className="p-2">{phoenixTime(m.updated_at)}</td>
                 <td className="p-2">

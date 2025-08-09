@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { api, phoenixTime } from "../api";
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
+
+const postureLabel = (p) => (p === "research_only" ? "Research Mode" : p);
 
 export default function MissionDetail() {
   const { id } = useParams();
@@ -23,7 +25,7 @@ export default function MissionDetail() {
       <div className="bg-white rounded shadow p-4">
         <div className="text-xl font-semibold">{mission.title}</div>
         <div className="text-sm text-neutral-600">Objective: {mission.objective}</div>
-        <div className="text-sm">Posture: {mission.posture}</div>
+        <div className="text-sm">Posture: {postureLabel(mission.posture)}</div>
         <div className="text-sm">State: {mission.state}</div>
         <div className="text-sm">Created: {phoenixTime(mission.created_at)} — Updated: {phoenixTime(mission.updated_at)}</div>
       </div>
