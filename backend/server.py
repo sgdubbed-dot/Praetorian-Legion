@@ -259,6 +259,8 @@ class Export(BaseModel):
     file_url: Optional[str] = None
     row_count: int = 0
     generated_at: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
 
 class ExportRecipeCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
