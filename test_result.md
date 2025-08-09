@@ -102,6 +102,55 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
+## user_problem_statement: "Agents page incomplete, Explorator error reset not working; linting error prevents clean boot. Ensure three agents always visible, implement auto-reset, Legatus posture logic, and scenario helper minutes param; then test backend."
+
+## backend:
+##   - task: "Fix lint error and add agents auto-reset + seeding + logic"
+##     implemented: true
+##     working: true
+##     file: "/app/backend/server.py"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: true
+##     status_history:
+##         -working: false
+##         -agent: "main"
+##         -comment: "Identified flake8 E731 due to lambda new_id; updated to def new_id(); services running."
+##         -working: true
+##         -agent: "testing"
+##         -comment: "Health endpoints OK; agents seeded; research_only forces Legatus yellow; Explorator error and auto-reset work; events OK."
+##
+## frontend:
+##   - task: "Agents.jsx always render Praefectus/Explorator/Legatus and show retry tooltip"
+##     implemented: true
+##     working: true
+##     file: "/app/frontend/src/pages/Agents.jsx"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: false
+##     status_history:
+##         -working: false
+##         -agent: "main"
+##         -comment: "Updated UI to ensure triad render, selection by agent_name, show next_retry_at."
+##
+## metadata:
+##   created_by: "main_agent"
+##   version: "1.0"
+##   test_sequence: 1
+##   run_ui: false
+##
+## test_plan:
+##   current_focus:
+##     - "Backend agents seeding and auto-reset logic"
+##   stuck_tasks:
+##     - "None"
+##   test_all: false
+##   test_priority: "high_first"
+##
+## agent_communication:
+##     -agent: "main"
+##     -message: "Please validate backend per acceptance criteria; hold frontend tests."
+
 user_problem_statement: "Backend API verification focused on Agents logic - health endpoints, agent seeding, research-only Legatus logic, Explorator error handling, and events endpoint"
 
 backend:
