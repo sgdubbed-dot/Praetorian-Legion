@@ -43,17 +43,27 @@ export default function Agents() {
           <button onClick={refresh} className="text-sm px-2 py-1 bg-neutral-800 text-white rounded">Refresh</button>
         </div>
         <ul>
-          {agents.map((a) => (
-            <li key={a.id || a.agent_name} className={`p-3 border-b hover:bg-neutral-50 cursor-pointer ${selected?.agent_name === a.agent_name ? "bg-neutral-50" : ""}`} onClick={() => setSelected(a)}>
-              <div className="flex items-center gap-2">
-                <Dot color={colorFor(a.status_light)} />
-                <div className="font-medium">{a.agent_name}</div>
-              </div>
-              <div className="text-xs text-neutral-500">Updated: {phoenixTime(a.updated_at)}</div>
-              {a.error_state && <div className="text-xs text-red-600">Error: {a.error_state}</div>}
-              {a.next_retry_at && <div className="text-[10px] text-neutral-500">Retry at: {phoenixTime(a.next_retry_at)}</div>}
-            </li>
-          ))}
+          {agents.map((a) => {
+            const tooltip = a?.error_state
+              ? (a?.next_retry_at ? `retry scheduled ${phoenixTime(a.next_retry_at)}` : `error: ${a.error_state}`)
+              : `last activity ${phoenixTime(a.updated_at)}`;
+            return (
+              <li
+                key={a.id || a.agent_name}
+                title={tooltip}
+                className={`p-3 border-b hover:bg-neutral-50 cursor-pointer ${selected?.agent_name === a.agent_name ? "bg-neutral-50" : ""}`}
+                onClick={() => setSelected(a)}
+              >
+                <div className="flex items-center gap-2">
+                  <Dot color={colorFor(a.status_light)} />
+                  <div className="font-medium">{a.agent_name}</div>
+                </div>
+                <div className="text-xs text-neutral-500">Updated: {phoenixTime(a.updated_at)}</div>
+                {a.error_state && <div className="text-xs text-red-600">Error: {a.error_state}</div>}
+                {a.next_retry_at && <div className="text-[10px] text-neutral-500">Retry at: {phoenixTime(a.next_retry_at)}</div>}
+              </li>
+            );
+          })}
         </ul>
       </div>
       <div className="md:col-span-2 bg-white rounded shadow p-3">
