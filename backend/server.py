@@ -495,6 +495,19 @@ async def update_hot_lead_status(hotlead_id: str, payload: HotLeadStatusUpdate):
         "removed": "hotlead_removed",
     }
     await log_event(event_map[payload.status], "backend/api", {"hotlead_id": hotlead_id})
+
+    # Append engagement_history note on Prospect when approved
+    if payload.status == "approved":
+        p = await get_by_id(COLL_ROLODEX, doc["prospect_id"])  # type: ignore
+        if p:
+            history = p.get("engagement_history", [])
+            history.append({
+                "event": "closing_approved",
+                "by_agent": "Praefectus",
+                "details": "Hot lead approved – Legatus may proceed",
+                "timestamp": now_iso(),
+            })
+            await update_by_id(COLL_ROLODEX, p["id"], {"engagement_history": history})
     return doc
 
 # Mission Control Chat
