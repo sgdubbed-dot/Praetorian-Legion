@@ -234,3 +234,5 @@ test_plan:
 agent_communication:
     - agent: "testing"
     - message: "Backend API verification completed successfully. All 5 major test areas passed with only one minor issue: Explorator auto-reset logic doesn't clear error_state/next_retry_at fields when status changes to green due to active missions (line 724 in server.py only checks for red status). Core functionality works correctly - agent status properly reflects operational state. Total: 13 tests run, 12 passed, 1 minor issue. All critical functionality verified working."
+    - agent: "testing"
+    - message: "RERUN VERIFICATION COMPLETED: All requested backend tests passed successfully. Health endpoints (✅), agents triad seeding (✅), research_only Legatus logic (✅), Explorator error handling (✅ with same minor cleanup issue), events endpoint (✅). Total runtime: 73.29s. API payloads captured. Same minor issue persists: error_state/next_retry_at not cleared when status changes to green due to active missions. Core functionality working correctly."
