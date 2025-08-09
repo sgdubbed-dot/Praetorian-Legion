@@ -750,7 +750,7 @@ async def list_agents():
     expl = await COLL_AGENTS.find_one({"agent_name": "Explorator"})
     if expl and expl.get("next_retry_at"):
         try:
-            retry_dt = datetime.fromisoformat(expl["next_retry_at"])
+            retry_dt = datetime.fromisoformat(expl["next_retry_at"].replace("Z", "+00:00"))
             if retry_dt <= now_dt:
                 # Determine new status based on active missions
                 active_missions = await COLL_MISSIONS.count_documents({"state": {"$in": ["scanning","engaging","escalating"]}})
