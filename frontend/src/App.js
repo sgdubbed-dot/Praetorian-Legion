@@ -3,10 +3,13 @@ import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import "./App.css";
 import MissionControl from "./pages/MissionControl";
 import Missions from "./pages/Missions";
+import MissionDetail from "./pages/MissionDetail";
 import Agents from "./pages/Agents";
 import Forums from "./pages/Forums";
 import Rolodex from "./pages/Rolodex";
+import ProspectDetail from "./pages/ProspectDetail";
 import HotLeads from "./pages/HotLeads";
+import HotLeadDetail from "./pages/HotLeadDetail";
 import Guardrails from "./pages/Guardrails";
 import Exports from "./pages/Exports";
 
