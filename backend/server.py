@@ -717,8 +717,46 @@ async def list_agents():
     for name, default_color in required:
         if name not in index:
             await insert_with_id(COLL_AGENTS, AgentStatus(agent_name=name, status_light=("yellow" if name=="Legatus" else default_color), last_activity=now_iso()).model_dump())
-    # Apply research_only posture rule for Legatus
+
+    # Auto-reset Explorator error state if retry time has passed
+    now_dt = datetime.now(tz=PHOENIX_TZ)
+    expl = await COLL_AGENTS.find_one({"agent_name": "Explorator"})
+    if expl and expl.get("status_light") == "red" and expl.get("next_retry_at"):
+        try:
+            retry_dt = datetime.fromisoformat(expl["next_retry_at"])
+            if retry_dt <= now_dt:
+                # Determine new status based on active missions
+                active_missions = await COLL_MISSIONS.count_documents({"state": {"$in": ["scanning","engaging","escalating"]}})
+                new_status = "green" if active_missions > 0 else "yellow"
+                await update_by_id(COLL_AGENTS, expl["_id"], {
+                    "status_light": new_status,
+                    "error_state": None,
+                    "next_retry_at": None,
+                    "last_activity": now_iso(),
+                })
+                await log_event("agent_error_cleared", "backend/api", {"agent_name": "Explorator"})
+                await log_event("agent_status_changed", "backend/api", {"agent_name": "Explorator", "status_light": new_status})
+        except Exception:
+            # If parsing fails, ignore
+            pass
+
+    # Apply research_only posture rule and general Legatus posture logic
+    # 1) If any active research_only mission exists, Legatus must be yellow (idle)
     await ensure_legatus_idle_if_research_only_exists()
+    # 2) If no research_only mission is active, set Legatus reflecting outreach status: green if any approved hot lead exists, else yellow
+    active_research_only = await COLL_MISSIONS.count_documents({
+        "posture": "research_only",
+        "state": {"$in": ["draft", "scanning", "engaging", "escalating"]},
+    })
+    if active_research_only == 0:
+        leg = await COLL_AGENTS.find_one({"agent_name": "Legatus"})
+        if leg:
+            approved_hl = await COLL_HOT_LEADS.count_documents({"status": "approved"})
+            leg_status = "green" if approved_hl > 0 else "yellow"
+            if leg.get("status_light") != leg_status:
+                await update_by_id(COLL_AGENTS, leg["_id"], {"status_light": leg_status, "last_activity": now_iso()})
+                await log_event("agent_status_changed", "backend/api", {"agent_name": "Legatus", "status_light": leg_status})
+
     docs = await COLL_AGENTS.find().sort("agent_name", 1).to_list(50)
     return [{k: v for k, v in d.items() if k != "_id"} for d in docs]
 
