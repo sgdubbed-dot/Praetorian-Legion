@@ -58,7 +58,19 @@ export default function Agents() {
                   <Dot color={colorFor(a.status_light)} />
                   <div className="font-medium">{a.agent_name}</div>
                 </div>
-                <div className="text-xs text-neutral-500">Updated: {phoenixTime(a.updated_at)}</div>
+                {/* Last event badge */}
+                <div className="mt-1 text-[11px] inline-flex items-center gap-1 px-2 py-[2px] rounded-full bg-neutral-100 text-neutral-700 border">
+                  {a.error_state ? (
+                    a.next_retry_at ? (
+                      <span>retry scheduled · {phoenixTime(a.next_retry_at)}</span>
+                    ) : (
+                      <span>error: {a.error_state}</span>
+                    )
+                  ) : (
+                    <span>error cleared · {phoenixTime(a.updated_at)}</span>
+                  )}
+                </div>
+                <div className="text-xs text-neutral-500 mt-1">Updated: {phoenixTime(a.updated_at)}</div>
                 {a.error_state && <div className="text-xs text-red-600">Error: {a.error_state}</div>}
                 {a.next_retry_at && <div className="text-[10px] text-neutral-500">Retry at: {phoenixTime(a.next_retry_at)}</div>}
               </li>
