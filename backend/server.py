@@ -686,10 +686,10 @@ class AgentError(BaseModel):
 async def report_agent_error(payload: AgentError):
     existing = await COLL_AGENTS.find_one({"agent_name": payload.agent_name})
     if not existing:
-        base = AgentStatus(agent_name=payload.agent_name, status_light="red", error_state=payload.error_state, last_activity=now_iso())
+        base = AgentStatus(agent_name=payload.agent_name, status_light="red", error_state=payload.error_state, last_activity=now_iso(), next_retry_at=payload.next_retry_at)
         doc = await insert_with_id(COLL_AGENTS, base.model_dump())
     else:
-        await update_by_id(COLL_AGENTS, existing["_id"], {"status_light": "red", "error_state": payload.error_state, "last_activity": now_iso()})
+        await update_by_id(COLL_AGENTS, existing["_id"], {"status_light": "red", "error_state": payload.error_state, "last_activity": now_iso(), "next_retry_at": payload.next_retry_at})
         doc = await get_by_id(COLL_AGENTS, existing["_id"])
     await log_event("agent_error_detected", "backend/api", {"agent_name": payload.agent_name, "error_state": payload.error_state})
     if payload.next_retry_at:
