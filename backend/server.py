@@ -1,5 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, APIRouter, HTTPException, Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -11,6 +10,8 @@ from datetime import datetime
 import os
 import uuid
 import logging
+import csv
+import io
 
 # Load env
 ROOT_DIR = Path(__file__).parent
@@ -90,7 +91,7 @@ class Mission(BaseModel):
     id: str = Field(default_factory=new_id)
     title: str
     objective: str
-    posture: str  # help_only | help_plus_soft_marketing
+    posture: str  # help_only | help_plus_soft_marketing | research_only
     state: str  # draft|scanning|engaging|escalating|paused|complete
     agents_assigned: List[str] = Field(default_factory=list)
     counters: Dict[str, int] = Field(default_factory=lambda: {
@@ -302,6 +303,30 @@ class GuardrailUpdate(BaseModel):
     # free-form, we will set updated_at server-side
     pass
 
+# ------------------ Helpers ------------------
+async def ensure_legatus_idle_if_research_only_exists():
+    # If any non-complete, non-paused mission with research_only posture exists, set Legatus to yellow
+    active = await COLL_MISSIONS.count_documents({
+        "posture": "research_only",
+        "state": {"$in": ["draft", "scanning", "engaging", "escalating"]},
+    })
+    if active > 0:
+        existing = await COLL_AGENTS.find_one({"agent_name": "Legatus"})
+        if existing:
+            await update_by_id(COLL_AGENTS, existing["_id"], {"status_light": "yellow", "last_activity": now_iso()})
+        else:
+            await insert_with_id(COLL_AGENTS, AgentStatus(agent_name="Legatus", status_light="yellow", last_activity=now_iso()).model_dump())
+
+async def append_agent_activity(agent_name: str, entry: Dict[str, Any]):
+    existing = await COLL_AGENTS.find_one({"agent_name": agent_name})
+    if existing:
+        stream = existing.get("activity_stream", [])
+        stream.append(entry)
+        await update_by_id(COLL_AGENTS, existing["_id"], {"activity_stream": stream, "last_activity": now_iso(), "status_light": existing.get("status_light", "green")})
+    else:
+        base = AgentStatus(agent_name=agent_name, status_light="green", last_activity=now_iso(), activity_stream=[entry])
+        await insert_with_id(COLL_AGENTS, base.model_dump())
+
 # ------------------ Routes ------------------
 @api.get("/", tags=["meta"])
 async def root():
@@ -317,6 +342,7 @@ async def create_mission(payload: MissionCreate):
     mission = Mission(**payload.model_dump())
     doc = await insert_with_id(COLL_MISSIONS, mission.model_dump())
     await log_event("mission_created", "backend/api", {"mission_id": doc["id"]})
+    await ensure_legatus_idle_if_research_only_exists()
     return doc
 
 @api.get("/missions", response_model=List[Mission], tags=["missions"])
@@ -338,6 +364,7 @@ async def update_mission(mission_id: str, payload: MissionUpdate):
         raise HTTPException(status_code=404, detail="Mission not found or not modified")
     doc = await get_by_id(COLL_MISSIONS, mission_id)
     await log_event("mission_updated_state" if payload.state else "mission_created", "backend/api", {"mission_id": mission_id, **payload.model_dump(exclude_unset=True)})
+    await ensure_legatus_idle_if_research_only_exists()
     return doc
 
 class MissionStateChange(BaseModel):
@@ -356,6 +383,7 @@ async def change_mission_state(mission_id: str, payload: MissionStateChange):
         "complete": "mission_completed",
     }.get(payload.state, "mission_updated_state")
     await log_event(state_event, "backend/api", {"mission_id": mission_id, "state": payload.state})
+    await ensure_legatus_idle_if_research_only_exists()
     return doc
 
 # Forums
@@ -439,7 +467,6 @@ async def create_hot_lead(payload: HotLeadCreate):
     doc = await insert_with_id(COLL_HOT_LEADS, hl.model_dump())
     await log_event("hotlead_flagged", "backend/api", {"hotlead_id": doc["id"], "prospect_id": payload.prospect_id})
     await log_event("hotlead_packet_prepared", "backend/api", {"hotlead_id": doc["id"]})
-    # Increment mission counters if mission_tags present on prospect
     return doc
 
 @api.get("/hotleads", response_model=List[HotLead], tags=["hotleads"])
@@ -470,7 +497,109 @@ async def update_hot_lead_status(hotlead_id: str, payload: HotLeadStatusUpdate):
     await log_event(event_map[payload.status], "backend/api", {"hotlead_id": hotlead_id})
     return doc
 
-# Exports (stub for Phase 1)
+# Mission Control Chat
+class MCMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str
+    approve: Optional[bool] = False
+    reject: Optional[bool] = False
+    draft: Optional[Dict[str, Any]] = None
+
+class MCReply(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    understanding: str
+    critique_options: List[str]
+    recommended_mission_draft: Dict[str, Any]
+    open_questions: List[str]
+
+@api.post("/mission_control/message", response_model=MCReply, tags=["mission_control"])
+async def mission_control_message(payload: MCMessage):
+    text = payload.text.strip()
+    # naive parsing
+    wants_research = any(k in text.lower() for k in ["research", "map", "discover"])
+    posture = "research_only" if wants_research else "help_only"
+    draft = payload.draft or {
+        "title": (text[:48] + "...") if len(text) > 48 else (text or "New Mission"),
+        "objective": text or "Explore and summarize findings",
+        "posture": posture,
+        "state": "draft",
+    }
+    reply = MCReply(
+        understanding=f"You asked to {'research/map' if wants_research else 'assist'}: {text[:180]}",
+        critique_options=[
+            "Scope clarity: define target persona precisely",
+            "Success criteria: specify measurable outcomes",
+            "Guardrails: confirm per-forum posture & etiquette",
+        ],
+        recommended_mission_draft=draft,
+        open_questions=[
+            "Which platforms are highest priority?",
+            "Any sensitive topics to avoid?",
+        ],
+    )
+    # log events
+    await log_event("mission_draft_submitted", "Praefectus", {"draft": draft})
+    await log_event("approval_requested", "Praefectus", {"draft": draft})
+
+    # append activity for Praefectus (human + ai)
+    await append_agent_activity("Praefectus", {"who": "human", "content": text, "timestamp": now_iso()})
+    await append_agent_activity("Praefectus", {"who": "Praefectus", "content": f"Draft proposed: {draft['title']}", "timestamp": now_iso()})
+
+    # optional auto-actions
+    if payload.reject:
+        await log_event("approval_rejected", "backend/api", {"draft": draft})
+        return reply
+
+    if payload.approve:
+        # create mission
+        created = await create_mission(MissionCreate(**{
+            "title": draft.get("title", "New Mission"),
+            "objective": draft.get("objective", text or "Explore"),
+            "posture": draft.get("posture", posture),
+            "state": "draft",
+        }))
+        await log_event("approval_granted", "backend/api", {"mission_id": created["id"]})
+        # If research_only, auto-discover a couple forums (Explorator behavior)
+        if created.get("posture") == "research_only":
+            samples = [
+                ForumCreate(platform="Reddit", name="r/agentops", url="https://reddit.com/r/agentops", rule_profile="strict_help_only", topic_tags=["agents","ops"]),
+                ForumCreate(platform="StackOverflow", name="agentops tag", url="https://stackoverflow.com/questions/tagged/agentops", rule_profile="strict_help_only", topic_tags=["agentops"]),
+            ]
+            for f in samples:
+                try:
+                    await create_forum(f)
+                except Exception:
+                    pass
+        # Ensure Legatus idle when research_only exists
+        await ensure_legatus_idle_if_research_only_exists()
+    return reply
+
+# Exports (CSV generation + download)
+async def filter_prospects_for_export(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
+    # naive filtering in Python for Phase 1
+    docs = await COLL_ROLODEX.find().to_list(5000)
+    rows = []
+    for d in docs:
+        d.pop("_id", None)
+        ok = True
+        if "priority_state" in spec:
+            if d.get("priority_state") not in set(spec["priority_state"]):
+                ok = False
+        if ok and spec.get("has_linkedin"):
+            if "linkedin" not in (d.get("handles") or {}):
+                ok = False
+        if ok and spec.get("platforms"):
+            pt = set(d.get("platform_tags") or [])
+            if pt.isdisjoint(set(spec["platforms"])):
+                ok = False
+        if ok and spec.get("tags"):
+            mt = set(d.get("mission_tags") or [])
+            if mt.isdisjoint(set(spec["tags"])):
+                ok = False
+        if ok:
+            rows.append(d)
+    return rows
+
 @api.post("/exports/recipe", response_model=Export, tags=["exports"])
 async def create_export_recipe(payload: ExportRecipeCreate):
     exp = Export(recipe_name=payload.recipe_name, filter_spec=payload.filter_spec)
@@ -480,19 +609,40 @@ async def create_export_recipe(payload: ExportRecipeCreate):
 
 @api.post("/exports/generate", response_model=Export, tags=["exports"])
 async def generate_export(payload: ExportGenerate):
-    # Stub: mark as generated with zero rows; Milestone C will implement real filtering + CSV
-    # Find recipe
+    # Find or create recipe
     recipe = await COLL_EXPORTS.find_one({"recipe_name": payload.recipe_name})
     if not recipe:
-        # create a placeholder recipe
         exp = Export(recipe_name=payload.recipe_name)
         recipe = await insert_with_id(COLL_EXPORTS, exp.model_dump())
     else:
         recipe.pop("_id", None)
+    rows = await filter_prospects_for_export(recipe.get("filter_spec", {}))
+    # build CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    headers = [
+        "id","name_or_alias","priority_state","company","role","handles.linkedin","platform_tags","mission_tags","created_at","updated_at"
+    ]
+    writer.writerow(headers)
+    for r in rows:
+        writer.writerow([
+            r.get("id"),
+            r.get("name_or_alias"),
+            r.get("priority_state"),
+            r.get("company"),
+            r.get("role"),
+            (r.get("handles") or {}).get("linkedin",""),
+            ";".join(r.get("platform_tags") or []),
+            ";".join(r.get("mission_tags") or []),
+            r.get("created_at"),
+            r.get("updated_at"),
+        ])
+    csv_data = output.getvalue()
     update = {
-        "row_count": 0,
-        "file_url": f"stub://{new_id()}.csv",
+        "row_count": len(rows),
+        "file_url": f"/api/exports/{recipe['id']}/download",
         "generated_at": now_iso(),
+        "csv_data": csv_data,
     }
     await update_by_id(COLL_EXPORTS, recipe["id"], update)
     doc = await get_by_id(COLL_EXPORTS, recipe["id"])
@@ -502,7 +652,24 @@ async def generate_export(payload: ExportGenerate):
 @api.get("/exports", response_model=List[Export], tags=["exports"])
 async def list_exports():
     docs = await COLL_EXPORTS.find().sort("generated_at", -1).to_list(200)
-    return [{k: v for k, v in d.items() if k != "_id"} for d in docs]
+    # strip csv_data from listing
+    cleaned = []
+    for d in docs:
+        d.pop("_id", None)
+        d.pop("csv_data", None)
+        cleaned.append(d)
+    return cleaned
+
+@api.get("/exports/{export_id}/download", tags=["exports"])
+async def download_export(export_id: str):
+    doc = await COLL_EXPORTS.find_one({"_id": export_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Export not found")
+    csv_data = doc.get("csv_data", "")
+    headers = {
+        "Content-Disposition": f"attachment; filename=export_{export_id}.csv"
+    }
+    return Response(content=csv_data, media_type="text/csv", headers=headers)
 
 # Agents
 @api.post("/agents/status", response_model=AgentStatus, tags=["agents"])
@@ -572,8 +739,19 @@ async def update_guardrail(guardrail_id: str, payload: Dict[str, Any]):
 
 # Events (for auditing/logging)
 @api.get("/events", tags=["events"])
-async def list_events(limit: int = 200):
-    docs = await COLL_EVENTS.find().sort("timestamp", -1).to_list(limit)
+async def list_events(limit: int = 200, mission_id: Optional[str] = None, hotlead_id: Optional[str] = None, prospect_id: Optional[str] = None, agent_name: Optional[str] = None):
+    q: Dict[str, Any] = {}
+    # we stored identifiers inside payload keys in our log_event usage
+    if mission_id:
+        q["payload.mission_id"] = mission_id
+    if hotlead_id:
+        q["payload.hotlead_id"] = hotlead_id
+    if prospect_id:
+        q["payload.prospect_id"] = prospect_id
+    if agent_name:
+        q["payload.agent_name"] = agent_name
+    cursor = COLL_EVENTS.find(q).sort("timestamp", -1).limit(limit)
+    docs = await cursor.to_list(limit)
     return [{k: v for k, v in d.items() if k != "_id"} for d in docs]
 
 # Mount router
