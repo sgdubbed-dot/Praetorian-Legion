@@ -4,6 +4,9 @@ import { api, phoenixTime } from "../api";
 export default function Guardrails() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ default_posture: "help_only", frequency_caps: { dm_per_week: 1 }, sensitive_topics: ["politics","religion"], standing_permissions: [], dm_etiquette: "" });
+  const [modalOpen, setModalOpen] = useState(false);
+  const [rule, setRule] = useState({ type: "", scope: "global", value: "", notes: "" });
+  const [warn, setWarn] = useState(null);
 
   const refresh = async () => setItems((await api.get(`/guardrails`)).data);
   useEffect(() => { refresh(); }, []);
@@ -13,6 +16,21 @@ export default function Guardrails() {
     await refresh();
   };
 
+  const addRule = async () => {
+    const payload = { ...rule };
+    await api.post(`/guardrails`, payload);
+    setModalOpen(false);
+    setRule({ type: "", scope: "global", value: "", notes: "" });
+    await refresh();
+  };
+
+  useEffect(() => {
+    // simple warning: if any guardrail explicitly restricts marketing and mission form selects help_plus_soft_marketing
+    const hasResearchOnly = items.some((g) => (g.type === "posture" && (g.value === "research_only")));
+    if (hasResearchOnly) setWarn("Warning: Research-only guardrail present. Ensure no public engagement.");
+    else setWarn(null);
+  }, [items]);
+
   return (
     <div>
       <h2 className="text-lg font-semibold mb-3">Guardrails</h2>
@@ -20,31 +38,59 @@ export default function Guardrails() {
         <select className="border rounded px-2 py-1" value={form.default_posture} onChange={(e) => setForm({ ...form, default_posture: e.target.value })}>
           <option value="help_only">help_only</option>
           <option value="help_plus_soft_marketing">help_plus_soft_marketing</option>
+          <option value="research_only">research_only</option>
         </select>
         <input className="border rounded px-2 py-1" placeholder="DM etiquette" value={form.dm_etiquette} onChange={(e) => setForm({ ...form, dm_etiquette: e.target.value })} />
-        <button onClick={create} className="px-3 py-1 bg-neutral-800 text-white rounded">Create</button>
+        <div className="flex gap-2">
+          <button onClick={create} className="px-3 py-1 bg-neutral-800 text-white rounded">Create</button>
+          <button onClick={() => setModalOpen(true)} className="px-3 py-1 bg-blue-600 text-white rounded">Add Rule</button>
+        </div>
       </div>
+
+      {warn && <div className="mb-3 p-2 bg-yellow-100 text-yellow-800 rounded text-sm">{warn}</div>}
 
       <div className="bg-white rounded shadow overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-neutral-100 text-left">
-              <th className="p-2">Posture</th>
-              <th className="p-2">Sensitive Topics</th>
+              <th className="p-2">Type</th>
+              <th className="p-2">Scope</th>
+              <th className="p-2">Value</th>
+              <th className="p-2">Notes</th>
               <th className="p-2">Updated</th>
             </tr>
           </thead>
           <tbody>
             {items.map((g) => (
               <tr key={g.id} className="border-t">
-                <td className="p-2">{g.default_posture}</td>
-                <td className="p-2">{(g.sensitive_topics||[]).join(", ")}</td>
+                <td className="p-2">{g.type || g.default_posture ? 'posture' : '-'}</td>
+                <td className="p-2">{g.scope || 'global'}</td>
+                <td className="p-2">{g.value || g.default_posture || '-'}</td>
+                <td className="p-2">{g.notes || '-'}</td>
                 <td className="p-2">{phoenixTime(g.updated_at)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+          <div className="bg-white rounded shadow p-4 w-full max-w-md">
+            <div className="text-lg font-semibold mb-2">Add Rule</div>
+            <div className="space-y-2">
+              <input className="w-full border rounded px-2 py-1" placeholder="Type (e.g., posture, frequency_caps, dm_etiquette, sensitive_topics)" value={rule.type} onChange={(e) => setRule({ ...rule, type: e.target.value })} />
+              <input className="w-full border rounded px-2 py-1" placeholder="Scope (global or forum URL/name)" value={rule.scope} onChange={(e) => setRule({ ...rule, scope: e.target.value })} />
+              <input className="w-full border rounded px-2 py-1" placeholder="Value" value={rule.value} onChange={(e) => setRule({ ...rule, value: e.target.value })} />
+              <textarea className="w-full border rounded px-2 py-1" placeholder="Notes" value={rule.notes} onChange={(e) => setRule({ ...rule, notes: e.target.value })} />
+            </div>
+            <div className="mt-3 flex gap-2 justify-end">
+              <button onClick={() => setModalOpen(false)} className="px-3 py-1 bg-neutral-200 rounded">Cancel</button>
+              <button onClick={addRule} className="px-3 py-1 bg-blue-600 text-white rounded">Save Rule</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
