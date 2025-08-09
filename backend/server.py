@@ -28,7 +28,7 @@ api = APIRouter(prefix="/api")
 # Timezone helpers (Phase 1 requires America/Phoenix timestamps)
 PHOENIX_TZ = ZoneInfo("America/Phoenix")
 
-def now_iso() -&gt; str:
+def now_iso() -> str:
     return datetime.now(tz=PHOENIX_TZ).isoformat()
 
 # ID helper
