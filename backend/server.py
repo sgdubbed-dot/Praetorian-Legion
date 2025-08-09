@@ -32,6 +32,21 @@ PHOENIX_TZ = ZoneInfo("America/Phoenix")
 def now_iso() -> str:
     return datetime.now(tz=PHOENIX_TZ).isoformat()
 
+def to_phoenix(ts: Optional[str]) -> Optional[str]:
+    if not ts:
+        return ts
+    try:
+        # Support 'Z' UTC and offset formats
+        s = ts.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(s)
+        if not dt.tzinfo:
+            # assume UTC if naive
+            dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+        return dt.astimezone(PHOENIX_TZ).isoformat()
+    except Exception:
+        # On parse failure, fallback to now in Phoenix
+        return now_iso()
+
 # ID helper
 # Flake8 E731: do not assign a lambda expression; define a function instead
 
