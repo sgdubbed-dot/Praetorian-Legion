@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { api, phoenixTime } from "../api";
+import { useNavigate } from "react-router-dom";
 
 export default function Rolodex() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ name_or_alias: "", handles: {}, priority_state: "cold" });
   const [handleKey, setHandleKey] = useState("");
   const [handleVal, setHandleVal] = useState("");
+  const nav = useNavigate();
 
   const fetchAll = async () => setItems((await api.get(`/prospects`)).data);
   useEffect(() => { fetchAll(); }, []);
@@ -52,7 +54,7 @@ export default function Rolodex() {
           </thead>
           <tbody>
             {items.map((p) => (
-              <tr key={p.id} className="border-t">
+              <tr key={p.id} className="border-t hover:bg-neutral-50 cursor-pointer" onClick={() => nav(`/prospects/${p.id}`)}>
                 <td className="p-2">{p.name_or_alias}</td>
                 <td className="p-2">{p.priority_state}</td>
                 <td className="p-2">{Object.entries(p.handles||{}).map(([k,v]) => `${k}:${v}`).join(", ")}</td>

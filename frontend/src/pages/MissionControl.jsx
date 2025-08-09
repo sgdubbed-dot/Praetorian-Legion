@@ -7,6 +7,7 @@ export default function MissionControl() {
   const [hotLeads, setHotLeads] = useState([]);
   const [creating, setCreating] = useState(false);
   const [missionForm, setMissionForm] = useState({ title: "", objective: "", posture: "help_only" });
+  const [mcReply, setMcReply] = useState(null);
 
   const refresh = async () => {
     try {
@@ -16,7 +17,6 @@ export default function MissionControl() {
       const hls = (await api.get("/hotleads")).data.filter((h) => h.status === "pending_approval");
       setHotLeads(hls);
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.error("PAGE ERROR:", e?.name || e?.message || e);
     }
   };
@@ -27,9 +27,7 @@ export default function MissionControl() {
     return () => clearInterval(id);
   }, []);
 
-  const messages = useMemo(() => {
-    return praefectus?.activity_stream ?? [];
-  }, [praefectus]);
+  const messages = useMemo(() => praefectus?.activity_stream ?? [], [praefectus]);
 
   const appendPraefectusActivity = async (entry) => {
     try {
@@ -42,25 +40,31 @@ export default function MissionControl() {
       await api.post("/agents/status", updated);
       await refresh();
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.error("PAGE ERROR:", e?.name || e?.message || e);
     }
   };
 
   const sendMessage = async () => {
     if (!chatInput.trim()) return;
-    const entry = { who: "human", content: chatInput.trim(), timestamp: new Date().toISOString() };
+    const human = { who: "human", content: chatInput.trim(), timestamp: new Date().toISOString() };
     setChatInput("");
-    await appendPraefectusActivity(entry);
+    await appendPraefectusActivity(human);
+    try {
+      const res = await api.post("/mission_control/message", { text: human.content });
+      setMcReply(res.data);
+      await appendPraefectusActivity({ who: "Praefectus", content: `Understanding: ${res.data.understanding}`, timestamp: new Date().toISOString() });
+      await appendPraefectusActivity({ who: "Praefectus", content: `Recommended Draft: ${res.data.recommended_mission_draft?.title}` , timestamp: new Date().toISOString() });
+    } catch (e) {
+      console.error("PAGE ERROR:", e?.name || e?.message || e);
+    }
   };
 
-  const approveHL = async (id, status) => {
+  const approveDraft = async () => {
+    if (!mcReply) return;
     try {
-      await api.post(`/hotleads/${id}/status`, { status });
-      await appendPraefectusActivity({ who: "Praefectus", content: `${status.toUpperCase()} hot lead ${id}`, timestamp: new Date().toISOString() });
+      await api.post("/mission_control/message", { text: "approve", approve: true, draft: mcReply.recommended_mission_draft });
       await refresh();
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.error("PAGE ERROR:", e?.name || e?.message || e);
     }
   };
@@ -71,9 +75,6 @@ export default function MissionControl() {
       const res = await api.post("/missions", missionForm);
       await appendPraefectusActivity({ who: "Praefectus", content: `Mission created: ${res.data.title}`, timestamp: new Date().toISOString() });
       setMissionForm({ title: "", objective: "", posture: "help_only" });
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("PAGE ERROR:", e?.name || e?.message || e);
     } finally {
       setCreating(false);
     }
@@ -103,6 +104,27 @@ export default function MissionControl() {
           <input className="flex-1 border rounded px-3 py-2" placeholder="Type a message to Praefectus..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} />
           <button onClick={sendMessage} className="px-4 py-2 bg-blue-600 text-white rounded">Send</button>
         </div>
+
+        {mcReply && (
+          <div className="mt-4 border rounded p-3 bg-white">
+            <div className="font-semibold mb-2">Praefectus Reply</div>
+            <div className="text-sm mb-1"><span className="font-medium">Understanding:</span> {mcReply.understanding}</div>
+            <div className="text-sm mb-1"><span className="font-medium">Critique & Options:</span>
+              <ul className="list-disc pl-5">
+                {mcReply.critique_options.map((c, i) => <li key={i}>{c}</li>)}
+              </ul>
+            </div>
+            <div className="text-sm mb-1"><span className="font-medium">Recommended Draft:</span> <code>{mcReply.recommended_mission_draft?.title}</code> — posture {mcReply.recommended_mission_draft?.posture}</div>
+            <div className="text-sm mb-3"><span className="font-medium">Open Questions:</span>
+              <ul className="list-disc pl-5">
+                {mcReply.open_questions.map((q, i) => <li key={i}>{q}</li>)}
+              </ul>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={approveDraft} className="px-3 py-1 bg-green-600 text-white rounded text-sm">Approve Draft</button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded shadow p-4 space-y-4">
@@ -115,9 +137,9 @@ export default function MissionControl() {
               <div className="text-xs text-neutral-500">Prospect: {hl.prospect_id.slice(0, 8)}</div>
               <div className="text-xs">Evidence: {hl.evidence?.[0]?.quote || "-"}</div>
               <div className="mt-2 flex gap-2">
-                <button onClick={() => approveHL(hl.id, "approved")} className="px-2 py-1 bg-green-600 text-white text-xs rounded">Approve</button>
-                <button onClick={() => approveHL(hl.id, "deferred")} className="px-2 py-1 bg-yellow-600 text-white text-xs rounded">Defer</button>
-                <button onClick={() => approveHL(hl.id, "removed")} className="px-2 py-1 bg-red-600 text-white text-xs rounded">Reject</button>
+                <button onClick={() => api.post(`/hotleads/${hl.id}/status`, { status: "approved" }).then(refresh)} className="px-2 py-1 bg-green-600 text-white text-xs rounded">Approve</button>
+                <button onClick={() => api.post(`/hotleads/${hl.id}/status`, { status: "deferred" }).then(refresh)} className="px-2 py-1 bg-yellow-600 text-white text-xs rounded">Defer</button>
+                <button onClick={() => api.post(`/hotleads/${hl.id}/status`, { status: "removed" }).then(refresh)} className="px-2 py-1 bg-red-600 text-white text-xs rounded">Reject</button>
               </div>
             </div>
           ))}
@@ -131,6 +153,7 @@ export default function MissionControl() {
             <select className="w-full border rounded px-2 py-1" value={missionForm.posture} onChange={(e) => setMissionForm({ ...missionForm, posture: e.target.value })}>
               <option value="help_only">help_only</option>
               <option value="help_plus_soft_marketing">help_plus_soft_marketing</option>
+              <option value="research_only">research_only</option>
             </select>
             <button disabled={creating} onClick={createMission} className="px-3 py-1 bg-neutral-800 text-white rounded text-sm">{creating ? "Creating..." : "Create Mission"}</button>
           </div>

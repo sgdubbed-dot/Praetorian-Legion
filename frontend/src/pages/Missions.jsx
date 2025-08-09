@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { api, phoenixTime } from "../api";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function Missions() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ title: "", objective: "", posture: "help_only" });
+  const nav = useNavigate();
 
   const fetchAll = async () => {
     try {
       setItems((await api.get("/missions")).data);
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.error("PAGE ERROR:", e?.name || e?.message || e);
     }
   };
@@ -21,7 +22,6 @@ export default function Missions() {
       setForm({ title: "", objective: "", posture: "help_only" });
       await fetchAll();
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.error("PAGE ERROR:", e?.name || e?.message || e);
     }
   };
@@ -31,7 +31,6 @@ export default function Missions() {
       await api.post(`/missions/${id}/state`, { state });
       await fetchAll();
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.error("PAGE ERROR:", e?.name || e?.message || e);
     }
   };
@@ -46,6 +45,7 @@ export default function Missions() {
           <select className="border rounded px-2 py-1" value={form.posture} onChange={(e) => setForm({ ...form, posture: e.target.value })}>
             <option value="help_only">help_only</option>
             <option value="help_plus_soft_marketing">help_plus_soft_marketing</option>
+            <option value="research_only">research_only</option>
           </select>
           <button onClick={create} className="px-3 py-1 bg-neutral-800 text-white rounded">Create</button>
         </div>
@@ -65,14 +65,14 @@ export default function Missions() {
           </thead>
           <tbody>
             {items.map((m) => (
-              <tr key={m.id} className="border-t">
+              <tr key={m.id} className="border-t hover:bg-neutral-50 cursor-pointer" onClick={() => nav(`/missions/${m.id}`)}>
                 <td className="p-2">{m.title}</td>
                 <td className="p-2">{m.state}</td>
                 <td className="p-2">{m.posture}</td>
                 <td className="p-2">F:{m.counters?.forums_found||0} P:{m.counters?.prospects_added||0} H:{m.counters?.hot_leads||0}</td>
                 <td className="p-2">{phoenixTime(m.updated_at)}</td>
                 <td className="p-2">
-                  <select value={m.state} onChange={(e) => changeState(m.id, e.target.value)} className="border rounded px-2 py-1">
+                  <select value={m.state} onClick={(e) => e.stopPropagation()} onChange={(e) => changeState(m.id, e.target.value)} className="border rounded px-2 py-1">
                     {["draft","scanning","engaging","escalating","paused","complete"].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </td>
