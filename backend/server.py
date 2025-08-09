@@ -702,6 +702,15 @@ async def upsert_agent_status(payload: AgentStatus):
     for k in ("last_activity", "created_at", "updated_at", "next_retry_at"):
         if k in norm and norm[k]:
             norm[k] = to_phoenix(norm[k])
+    # Normalize nested activity_stream timestamps if present
+    if isinstance(norm.get("activity_stream"), list):
+        fixed_stream = []
+        for entry in norm["activity_stream"]:
+            if isinstance(entry, dict) and entry.get("timestamp"):
+                entry = {**entry, "timestamp": to_phoenix(entry["timestamp"])}
+            fixed_stream.append(entry)
+        norm["activity_stream"] = fixed_stream
+
     existing = await COLL_AGENTS.find_one({"agent_name": payload.agent_name})
     if existing:
         await update_by_id(COLL_AGENTS, existing["_id"], {k: v for k, v in norm.items() if k != "id"})
