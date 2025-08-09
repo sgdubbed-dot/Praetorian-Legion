@@ -6,19 +6,34 @@ export default function Missions() {
   const [form, setForm] = useState({ title: "", objective: "", posture: "help_only" });
 
   const fetchAll = async () => {
-    setItems((await api.get("/missions")).data);
+    try {
+      setItems((await api.get("/missions")).data);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("PAGE ERROR:", e?.name || e?.message || e);
+    }
   };
   useEffect(() => { fetchAll(); }, []);
 
   const create = async () => {
-    await api.post("/missions", form);
-    setForm({ title: "", objective: "", posture: "help_only" });
-    await fetchAll();
+    try {
+      await api.post("/missions", form);
+      setForm({ title: "", objective: "", posture: "help_only" });
+      await fetchAll();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("PAGE ERROR:", e?.name || e?.message || e);
+    }
   };
 
   const changeState = async (id, state) => {
-    await api.post(`/missions/${id}/state`, { state });
-    await fetchAll();
+    try {
+      await api.post(`/missions/${id}/state`, { state });
+      await fetchAll();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("PAGE ERROR:", e?.name || e?.message || e);
+    }
   };
 
   return (

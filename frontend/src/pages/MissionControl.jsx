@@ -1,10 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { api, phoenixTime } from "../api";
 
-const StatusPill = ({ color = "gray", children }) => (
-  <span className={`px-2 py-0.5 rounded text-white text-xs bg-${color}-600`}>{children}</span>
-);
-
 export default function MissionControl() {
   const [praefectus, setPraefectus] = useState(null);
   const [chatInput, setChatInput] = useState("");
@@ -13,11 +9,16 @@ export default function MissionControl() {
   const [missionForm, setMissionForm] = useState({ title: "", objective: "", posture: "help_only" });
 
   const refresh = async () => {
-    const agents = (await api.get("/agents")).data;
-    const pf = agents.find((a) => a.agent_name === "Praefectus") || null;
-    setPraefectus(pf);
-    const hls = (await api.get("/hotleads")).data.filter((h) => h.status === "pending_approval");
-    setHotLeads(hls);
+    try {
+      const agents = (await api.get("/agents")).data;
+      const pf = agents.find((a) => a.agent_name === "Praefectus") || null;
+      setPraefectus(pf);
+      const hls = (await api.get("/hotleads")).data.filter((h) => h.status === "pending_approval");
+      setHotLeads(hls);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("PAGE ERROR:", e?.name || e?.message || e);
+    }
   };
 
   useEffect(() => {
@@ -31,14 +32,19 @@ export default function MissionControl() {
   }, [praefectus]);
 
   const appendPraefectusActivity = async (entry) => {
-    const existing = praefectus || { agent_name: "Praefectus", status_light: "green", activity_stream: [] };
-    const updated = {
-      ...existing,
-      last_activity: new Date().toISOString(),
-      activity_stream: [...(existing.activity_stream || []), entry],
-    };
-    await api.post("/agents/status", updated);
-    await refresh();
+    try {
+      const existing = praefectus || { agent_name: "Praefectus", status_light: "green", activity_stream: [] };
+      const updated = {
+        ...existing,
+        last_activity: new Date().toISOString(),
+        activity_stream: [...(existing.activity_stream || []), entry],
+      };
+      await api.post("/agents/status", updated);
+      await refresh();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("PAGE ERROR:", e?.name || e?.message || e);
+    }
   };
 
   const sendMessage = async () => {
@@ -49,9 +55,14 @@ export default function MissionControl() {
   };
 
   const approveHL = async (id, status) => {
-    await api.post(`/hotleads/${id}/status`, { status });
-    await appendPraefectusActivity({ who: "Praefectus", content: `${status.toUpperCase()} hot lead ${id}`, timestamp: new Date().toISOString() });
-    await refresh();
+    try {
+      await api.post(`/hotleads/${id}/status`, { status });
+      await appendPraefectusActivity({ who: "Praefectus", content: `${status.toUpperCase()} hot lead ${id}`, timestamp: new Date().toISOString() });
+      await refresh();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("PAGE ERROR:", e?.name || e?.message || e);
+    }
   };
 
   const createMission = async () => {
@@ -60,6 +71,9 @@ export default function MissionControl() {
       const res = await api.post("/missions", missionForm);
       await appendPraefectusActivity({ who: "Praefectus", content: `Mission created: ${res.data.title}`, timestamp: new Date().toISOString() });
       setMissionForm({ title: "", objective: "", posture: "help_only" });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("PAGE ERROR:", e?.name || e?.message || e);
     } finally {
       setCreating(false);
     }

@@ -2,7 +2,6 @@ import axios from "axios";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 if (!BACKEND_URL) {
-  // Do not hardcode; just warn in console to set .env
   // eslint-disable-next-line no-console
   console.warn("REACT_APP_BACKEND_URL is not set. Frontend API calls will fail.");
 }
@@ -11,6 +10,16 @@ export const api = axios.create({
   baseURL: `${BACKEND_URL}/api`,
   headers: { "Content-Type": "application/json" },
 });
+
+// Optional: simple interceptor to log errors (does not swallow them)
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    // eslint-disable-next-line no-console
+    console.error("REQUEST FAILED:", err?.config?.url || "", "-", err?.message || err);
+    throw err;
+  }
+);
 
 export const phoenixTime = (ts) => {
   if (!ts) return "-";

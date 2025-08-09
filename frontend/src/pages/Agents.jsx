@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api, phoenixTime } from "../api";
 
 const Dot = ({ color = "gray" }) => (
-  <span className={`inline-block w-3 h-3 rounded-full bg-${color}-500`} />
+  <span className={`inline-block w-3 h-3 rounded-full`} style={{ backgroundColor: color }} />
 );
 
 export default function Agents() {
@@ -10,17 +10,22 @@ export default function Agents() {
   const [selected, setSelected] = useState(null);
 
   const refresh = async () => {
-    const res = await api.get("/agents");
-    setAgents(res.data);
-    if (selected) {
-      const found = res.data.find((a) => a.id === selected.id);
-      if (found) setSelected(found);
+    try {
+      const res = await api.get("/agents");
+      setAgents(res.data);
+      if (selected) {
+        const found = res.data.find((a) => a.id === selected.id);
+        if (found) setSelected(found);
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("PAGE ERROR:", e?.name || e?.message || e);
     }
   };
 
   useEffect(() => { refresh(); const id = setInterval(refresh, 5000); return () => clearInterval(id); }, []);
 
-  const colorFor = (s) => (s === "green" ? "green" : s === "yellow" ? "yellow" : s === "red" ? "red" : "gray");
+  const colorFor = (s) => (s === "green" ? "green" : s === "yellow" ? "goldenrod" : s === "red" ? "crimson" : "gray");
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
