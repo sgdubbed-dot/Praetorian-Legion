@@ -9,12 +9,20 @@ export default function Agents() {
   const [agents, setAgents] = useState([]);
   const [selected, setSelected] = useState(null);
 
+  const ensureTriad = (list) => {
+    const names = ["Praefectus", "Explorator", "Legatus"];
+    const index = Object.fromEntries(list.map((a) => [a.agent_name, a]));
+    const filled = names.map((n) => index[n] || { id: n, agent_name: n, status_light: n === "Legatus" ? "yellow" : "green", updated_at: new Date().toISOString(), activity_stream: [] });
+    return filled;
+  };
+
   const refresh = async () => {
     try {
       const res = await api.get("/agents");
-      setAgents(res.data);
+      const triad = ensureTriad(res.data);
+      setAgents(triad);
       if (selected) {
-        const found = res.data.find((a) => a.id === selected.id);
+        const found = triad.find((a) => a.agent_name === selected.agent_name);
         if (found) setSelected(found);
       }
     } catch (e) {
@@ -36,13 +44,14 @@ export default function Agents() {
         </div>
         <ul>
           {agents.map((a) => (
-            <li key={a.id} className={`p-3 border-b hover:bg-neutral-50 cursor-pointer ${selected?.id === a.id ? "bg-neutral-50" : ""}`} onClick={() => setSelected(a)}>
+            <li key={a.id || a.agent_name} className={`p-3 border-b hover:bg-neutral-50 cursor-pointer ${selected?.agent_name === a.agent_name ? "bg-neutral-50" : ""}`} onClick={() => setSelected(a)}>
               <div className="flex items-center gap-2">
                 <Dot color={colorFor(a.status_light)} />
                 <div className="font-medium">{a.agent_name}</div>
               </div>
               <div className="text-xs text-neutral-500">Updated: {phoenixTime(a.updated_at)}</div>
               {a.error_state && <div className="text-xs text-red-600">Error: {a.error_state}</div>}
+              {a.next_retry_at && <div className="text-[10px] text-neutral-500">Retry at: {phoenixTime(a.next_retry_at)}</div>}
             </li>
           ))}
         </ul>
