@@ -50,9 +50,12 @@ function App() {
           <Routes>
             <Route path="/" element={<MissionControl />} />
             <Route path="/missions" element={<Missions />} />
+            <Route path="/missions/:id" element={<MissionDetail />} />
             <Route path="/forums" element={<Forums />} />
             <Route path="/rolodex" element={<Rolodex />} />
+            <Route path="/prospects/:id" element={<ProspectDetail />} />
             <Route path="/hotleads" element={<HotLeads />} />
+            <Route path="/hotleads/:id" element={<HotLeadDetail />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/guardrails" element={<Guardrails />} />
             <Route path="/exports" element={<Exports />} />
