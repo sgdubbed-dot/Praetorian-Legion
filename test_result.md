@@ -132,6 +132,9 @@
 ##         -working: false
 ##         -agent: "main"
 ##         -comment: "Updated UI to ensure triad render, selection by agent_name, show next_retry_at."
+##         -working: true
+##         -agent: "testing"
+##         -comment: "COMPREHENSIVE FRONTEND TESTING COMPLETED: All 6 test scenarios passed successfully. ✅ Three agents (Praefectus, Explorator, Legatus) always render correctly. ✅ Color dots accurately reflect API status (green=rgb(0,128,0), yellow=rgb(218,165,32), red=rgb(220,20,60)). ✅ Explorator error scenario works: POST /api/scenarios/agent_error_retry triggers red status with 'Retry at' timestamp display. ✅ Auto-reset functionality verified: After 75 seconds, Explorator automatically resets to green with error_state and next_retry_at cleared. ✅ Research-only mission logic works: Creating research_only mission correctly forces Legatus to yellow status. ✅ Tooltip functionality verified: All agents show proper Phoenix timezone formatted tooltips with 'last activity' or 'retry scheduled' text. UI renders perfectly, all interactions work smoothly, backend integration flawless."
 ##
 ## metadata:
 ##   created_by: "main_agent"
