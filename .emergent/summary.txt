@@ -1,0 +1,186 @@
+<analysis>
+Project scope & design
+	•	Product: Praetorian Legion Phase 1 – an AI‑driven marketing platform for Praetoria. The system consists of three autonomous agents: Praefectus (orchestrator), Explorator (research), and Legatus (outreach).  These agents operate within guardrails: no outreach happens without explicit approval, all data comes from public sources, and platform rules are respected.
+	•	User interface: Eight pages/tabs form the control center:
+	1.	Mission Control – chat interface where I brainstorm mission ideas with Praefectus, receive critiques and options, and approve or reject missions.
+	2.	Missions – list and detail views for all missions, showing objectives, posture (help_only, help_plus_soft_marketing, research_only), state transitions, counters and insights.
+	3.	Forums – registry of discovered communities (platform, URL, rule profile, relevance notes) with manual add and auto‑add via Explorator.
+	4.	Rolodex – enriched prospect database with name/handles, signals (pain points, competitor mentions, scale indicators), priority state (hot/warm/cold), engagement history and tags.
+	5.	Hot Leads – high‑priority leads joined to the Rolodex, each with evidence, a proposed closing script and suggested actions, plus an approval queue.
+	6.	Agents – status dashboard for Praefectus, Explorator and Legatus showing green/yellow/red lights and a live activity feed; Legatus remains idle (yellow) when a mission is in “Research Mode”.
+	7.	Guardrails – panel to set global and per‑forum rules (default posture, frequency caps, DM etiquette, sensitive-topic escalation) and add custom rules via an “Add Rule” modal.
+	8.	Exports – ability to define export recipes (e.g., “Warm+Hot last 7 days with LinkedIn handle”), generate CSV files and download them.
+
+System manifest & data model
+	•	A Phase 1 System Manifest defines the purpose, scope, collaboration model (brainstorm → draft → approval → execution), non‑finite capability principle, guardrails, event taxonomy and the “ask before assuming” rule.  It was pasted into Emergent’s global prompt and stored as a document so all agents share the same rules.
+	•	Data contracts: Defined Mongo collections with UUID IDs and Phoenix‑time timestamps for Missions, Forums, Prospects (Rolodex), Hot Leads, Exports, Agents (AgentStatus), Guardrails and Events.  Each includes specific fields (e.g., mission counters, forum rule profile, prospect signals and engagement history, hot lead evidence/script/actions, export filter specs).  An event taxonomy records mission state changes, forum discoveries, prospect enrichments, hot‑lead statuses, export generation, guardrail updates and agent errors/retries.
+
+Backend & frontend implementation
+	•	Implemented the backend using FastAPI and MongoDB. Endpoints exist for creating/listing/updating missions, forums, prospects, hot leads, exports, agent statuses, guardrails and events.  A centralized log_event() writes to the Events collection.
+	•	Implemented the frontend with React and Tailwind.  Each page reflects the corresponding collection, with forms and controls for creation and state changes.  Mission Control uses a POST /api/mission_control/message endpoint to send messages to Praefectus; responses include “Understanding”, “Critique & Options”, a “Recommended Mission Draft” and “Open Questions”.  Research‑only missions prevent Legatus from activating.
+	•	Added a Phoenix‑time renderer so all timestamps display in America/Phoenix.  Configured CORS correctly.  Added mission, prospect and hot lead detail pages, and integrated a chat indicator for guardrail conflicts.
+	•	Added scenario helper endpoints for rapid testing: strict_rule_mission (seeds a help_only mission with strict forums and prospects), open_forum_plan (creates a help_plus_soft_marketing mission with open forums and insights), generate_hotlead (produces a hot-lead packet), export_shortcut (generates a CSV export) and agent_error_retry (simulates an Explorator error with a scheduled retry).
+
+Polish & enhancements
+	•	Added Research Mode: a third mission posture (research_only) that triggers Explorator scanning and enrichment while keeping Legatus idle.
+	•	Added the “Add Rule” modal to Guardrails for creating custom rules (research_only per forum, frequency caps, DM etiquette, sensitive‑topic escalations).  Mission Control warns when a mission posture conflicts with a guardrail.
+	•	On hot‑lead approval, the corresponding prospect’s engagement_history is now appended with a “closing_approved” entry, ensuring traceability.
+	•	Added CSV export generation and download functionality; Exports page now shows recipe creation, generation status and a download link.
+
+Outstanding issues
+	•	Legatus visibility: The Agents page currently lists only Praefectus and Explorator; Legatus does not always appear.
+	•	Explorator error state: When an agent error is simulated, Explorator remains red (error) even after the scheduled retry; its status should revert to green/yellow.
+	•	Partial code edit: The latest backend edit (update_prospect refactor) failed due to a linting error; this needs to be corrected to ensure the server starts cleanly.
+</analysis>
+<product_requirements>
+The Praetorian Legion Phase 1 aims to build a coordinated, agent-driven marketing and intelligence unit. It involves discovering markets, engaging across forums, escalating hot leads, and maintaining searchable records.
+**Core Components:**
+*   **Three Agents:** Praefectus (orchestrator), Explorator (research), Legatus (outreach).
+*   **Eight UX Surfaces:** Mission Control, Missions, Forums, Rolodex, Hot Leads, Agents, Guardrails, Exports.
+**Key Features Implemented/Requested:**
+*   **Data Contracts:** Missions, Forums, Prospects (Rolodex), Hot Leads, Exports, AgentStatus, Guardrails, Events. All collection names are TitleCase, field names lower_snake_case, include UUID uid=0(root) gid=0(root) groups=0(root) and Phoenix timestamps (, ).
+*   **Event Taxonomy:** Consistent logging of events like , , , .
+*   **Backend (Milestone A):** Pydantic models, MongoDB collections, CRUD/action endpoints under . Centralized event logger. No Mongo ObjectIDs exposed.
+*   **Frontend (Milestone B):** Utilitarian UI with functional list/create/update flows for all 8 surfaces. Centralized Axios client using  with  prefix. All timestamps rendered in America/Phoenix time. Mission Control with chat-style panel and approval buttons. Agents page showing status lights and activity stream.
+*   **Phase 1 Polish:**
+    *    mission posture: Explorator acts, Legatus remains idle (yellow status).
+    *   Mission Control chat loop: POST  for Praefectus structured replies, emitting relevant events.
+    *   Detail pages: Clickable rows for Missions, Prospects, Hot Leads, routing to detail views showing comprehensive data and related events/history. Hot Leads joined with Prospects.
+    *   Forums auto-add: Explorator automatically creates Forum records.
+    *   Guardrails extensibility: Add Rule modal for entries (type, scope, value, notes), Mission Control warns on conflicts.
+    *   Exports UX: Create Recipe modal with filters, CSV download link.
+    *   Hot Lead approval: Append closing_approved note to corresponding Prospect's .
+*   **Scenario Helper Endpoints (Milestone C):** Backend endpoints to seed data for strict-rule mission, open-forum plan, hot-lead generation, export shortcut, and agent error/retry simulation for E2E testing.
+**Current Bugs:** The Agents page does not consistently list all three agents (Praefectus, Explorator, Legatus), and Explorator's error state (red) does not reset after a simulated retry.
+</product_requirements>
+<key_technical_concepts>
+- **FastAPI**: Python web framework for backend API development.
+- **React**: JavaScript library for building user interfaces.
+- **MongoDB**: NoSQL database for data storage.
+- **Pydantic**: Data validation and settings management using Python type hints.
+- **Tailwind CSS**: Utility-first CSS framework for styling.
+- **Supervisor**: Process control system for managing background services (FastAPI, React).
+- **Kubernetes Ingress**: Manages external access to services, routing  to backend.
+- **UUIDs**: Universally Unique Identifiers for unique record identification.
+- **ISO 8601 Phoenix Timestamps**: Standardized date/time format with America/Phoenix timezone.
+- **CORS**: Cross-Origin Resource Sharing for secure frontend-backend communication.
+- **Axios**: Promise-based HTTP client for frontend API calls.
+</key_technical_concepts>
+<code_architecture>
+
+
+- ****:
+    - **Summary**: This is the core FastAPI application file, defining all backend logic. It includes Pydantic models for data contracts (Mission, Forum, Prospect, HotLead, Export, AgentStatus, Guardrail, Event), MongoDB CRUD operations, API endpoints ( prefix), and event logging.
+    - **Changes**:
+        - Initial implementation of all Phase 1 data models, collections, and CRUD endpoints (Milestone A).
+        - Centralized  for Phoenix timestamps and  for taxonomy adherence.
+        - UUIDs used for uid=0(root) gid=0(root) groups=0(root) and mirrored to  to avoid Mongo ObjectIDs.
+        - Enhanced CORS configuration to respect  from .
+        - Added  posture to Mission model and logic to ensure Legatus is idle in this mode.
+        - Implemented  for Praefectus chat interactions, including structured replies and event emission.
+        - Added CSV export generation and download endpoints (, , ).
+        - Extended  with filtering capabilities.
+        - Implemented scenario helper endpoints under  for seeding test data (strict-rule mission, open-forum plan, hot-lead generation, export shortcut, agent error/retry).
+        - Fixed  and  fields in Export and AgentStatus models for correct validation.
+        - Added logic to append  for Prospects when a Hot Lead is approved.
+        - Recent changes attempt to address the Agents page display and error state reset issues, though one failed due to linting.
+
+- ****:
+    - **Summary**: This file centralizes the Axios HTTP client for all frontend API calls.
+    - **Changes**: Configured Axios to use  and append . Includes a  utility for consistent timestamp rendering and a basic error-logging interceptor.
+
+- ****:
+    - **Summary**: The main React component that sets up routing for the application.
+    - **Changes**: Integrated  to define routes for all 8 main pages (, , , , , , , ) and the new detail pages (, , ). Includes a simple top navigation.
+
+- ** (e.g., MissionControl.jsx, Missions.jsx, Agents.jsx, etc.)**:
+    - **Summary**: These files represent the individual UI pages for each functional area of the application.
+    - **Changes**:
+        - **MissionControl.jsx**: Implemented chat interface posting to , displaying structured replies, approval buttons, and real-time polling for Agents and Hot Leads. Displays Research Mode label.
+        - **Missions.jsx**: List view with creation form.
+        - **MissionDetail.jsx (New)**: Displays detailed mission information, including objective, posture, state, counters, insights, and recent events.
+        - **Agents.jsx**: Displays agent status lights (green/yellow/red) and an activity stream with live refresh. This file is currently being debugged for displaying all three agents and correct error state reset.
+        - **Forums.jsx**: List view with creation form. No specific UI changes for auto-add, as it's backend-driven.
+        - **Rolodex.jsx**: List view with creation form.
+        - **ProspectDetail.jsx (New)**: Displays detailed prospect information, including handles, signals, engagement history, and contact info.
+        - **HotLeads.jsx**: List view joined with prospect names.
+        - **HotLeadDetail.jsx (New)**: Displays hot lead evidence, proposed script, suggested actions, and status history.
+        - **Guardrails.jsx**: List view with an Add Rule modal for extensible guardrail entries; Mission Control warns on conflicts.
+        - **Exports.jsx**: Create Recipe modal with filters; displays a Download CSV link after generation.
+    - All pages utilize  for timestamp rendering.
+</code_architecture>
+<pending_tasks>
+- **Agents list completeness**: Ensure all three Phase-1 agents (Praefectus, Explorator, Legatus) are always listed on the Agents page, with Legatus's status (yellow for idle in research_only missions) correctly reflected.
+- **Error state reset**: Fix the Explorator's crawl timeout error state so it clears after the scheduled retry window, and the Agents view reflects the updated status (from red back to green/yellow).
+</pending_tasks>
+<current_work>
+Project scope & design
+	•	Product: Praetorian Legion Phase 1 – an AI‑driven marketing platform for Praetoria. The system consists of three autonomous agents: Praefectus (orchestrator), Explorator (research), and Legatus (outreach).  These agents operate within guardrails: no outreach happens without explicit approval, all data comes from public sources, and platform rules are respected.
+	•	User interface: Eight pages/tabs form the control center:
+	1.	Mission Control – chat interface where I brainstorm mission ideas with Praefectus, receive critiques and options, and approve or reject missions.
+	2.	Missions – list and detail views for all missions, showing objectives, posture (help_only, help_plus_soft_marketing, research_only), state transitions, counters and insights.
+	3.	Forums – registry of discovered communities (platform, URL, rule profile, relevance notes) with manual add and auto‑add via Explorator.
+	4.	Rolodex – enriched prospect database with name/handles, signals (pain points, competitor mentions, scale indicators), priority state (hot/warm/cold), engagement history and tags.
+	5.	Hot Leads – high‑priority leads joined to the Rolodex, each with evidence, a proposed closing script and suggested actions, plus an approval queue.
+	6.	Agents – status dashboard for Praefectus, Explorator and Legatus showing green/yellow/red lights and a live activity feed; Legatus remains idle (yellow) when a mission is in “Research Mode”.
+	7.	Guardrails – panel to set global and per‑forum rules (default posture, frequency caps, DM etiquette, sensitive-topic escalation) and add custom rules via an “Add Rule” modal.
+	8.	Exports – ability to define export recipes (e.g., “Warm+Hot last 7 days with LinkedIn handle”), generate CSV files and download them.
+
+System manifest & data model
+	•	A Phase 1 System Manifest defines the purpose, scope, collaboration model (brainstorm → draft → approval → execution), non‑finite capability principle, guardrails, event taxonomy and the “ask before assuming” rule.  It was pasted into Emergent’s global prompt and stored as a document so all agents share the same rules.
+	•	Data contracts: Defined Mongo collections with UUID IDs and Phoenix‑time timestamps for Missions, Forums, Prospects (Rolodex), Hot Leads, Exports, Agents (AgentStatus), Guardrails and Events.  Each includes specific fields (e.g., mission counters, forum rule profile, prospect signals and engagement history, hot lead evidence/script/actions, export filter specs).  An event taxonomy records mission state changes, forum discoveries, prospect enrichments, hot‑lead statuses, export generation, guardrail updates and agent errors/retries.
+
+Backend & frontend implementation
+	•	Implemented the backend using FastAPI and MongoDB. Endpoints exist for creating/listing/updating missions, forums, prospects, hot leads, exports, agent statuses, guardrails and events.  A centralized log_event() writes to the Events collection.
+	•	Implemented the frontend with React and Tailwind.  Each page reflects the corresponding collection, with forms and controls for creation and state changes.  Mission Control uses a POST /api/mission_control/message endpoint to send messages to Praefectus; responses include “Understanding”, “Critique & Options”, a “Recommended Mission Draft” and “Open Questions”.  Research‑only missions prevent Legatus from activating.
+	•	Added a Phoenix‑time renderer so all timestamps display in America/Phoenix.  Configured CORS correctly.  Added mission, prospect and hot lead detail pages, and integrated a chat indicator for guardrail conflicts.
+	•	Added scenario helper endpoints for rapid testing: strict_rule_mission (seeds a help_only mission with strict forums and prospects), open_forum_plan (creates a help_plus_soft_marketing mission with open forums and insights), generate_hotlead (produces a hot-lead packet), export_shortcut (generates a CSV export) and agent_error_retry (simulates an Explorator error with a scheduled retry).
+
+Polish & enhancements
+	•	Added Research Mode: a third mission posture (research_only) that triggers Explorator scanning and enrichment while keeping Legatus idle.
+	•	Added the “Add Rule” modal to Guardrails for creating custom rules (research_only per forum, frequency caps, DM etiquette, sensitive‑topic escalations).  Mission Control warns when a mission posture conflicts with a guardrail.
+	•	On hot‑lead approval, the corresponding prospect’s engagement_history is now appended with a “closing_approved” entry, ensuring traceability.
+	•	Added CSV export generation and download functionality; Exports page now shows recipe creation, generation status and a download link.
+
+Outstanding issues
+	•	Legatus visibility: The Agents page currently lists only Praefectus and Explorator; Legatus does not always appear.
+	•	Explorator error state: When an agent error is simulated, Explorator remains red (error) even after the scheduled retry; its status should revert to green/yellow.
+	•	Partial code edit: The latest backend edit (update_prospect refactor) failed due to a linting error; this needs to be corrected to ensure the server starts cleanly.
+</current_work>
+<optional_next_step>
+Address the linting error in  and continue debugging the Agents page issues to ensure all agents are listed correctly and error states reset as expected.  
+
+Additional Context: 
+Project scope & design
+	•	Product: Praetorian Legion Phase 1 – an AI‑driven marketing platform for Praetoria. The system consists of three autonomous agents: Praefectus (orchestrator), Explorator (research), and Legatus (outreach).  These agents operate within guardrails: no outreach happens without explicit approval, all data comes from public sources, and platform rules are respected.
+	•	User interface: Eight pages/tabs form the control center:
+	1.	Mission Control – chat interface where I brainstorm mission ideas with Praefectus, receive critiques and options, and approve or reject missions.
+	2.	Missions – list and detail views for all missions, showing objectives, posture (help_only, help_plus_soft_marketing, research_only), state transitions, counters and insights.
+	3.	Forums – registry of discovered communities (platform, URL, rule profile, relevance notes) with manual add and auto‑add via Explorator.
+	4.	Rolodex – enriched prospect database with name/handles, signals (pain points, competitor mentions, scale indicators), priority state (hot/warm/cold), engagement history and tags.
+	5.	Hot Leads – high‑priority leads joined to the Rolodex, each with evidence, a proposed closing script and suggested actions, plus an approval queue.
+	6.	Agents – status dashboard for Praefectus, Explorator and Legatus showing green/yellow/red lights and a live activity feed; Legatus remains idle (yellow) when a mission is in “Research Mode”.
+	7.	Guardrails – panel to set global and per‑forum rules (default posture, frequency caps, DM etiquette, sensitive-topic escalation) and add custom rules via an “Add Rule” modal.
+	8.	Exports – ability to define export recipes (e.g., “Warm+Hot last 7 days with LinkedIn handle”), generate CSV files and download them.
+
+System manifest & data model
+	•	A Phase 1 System Manifest defines the purpose, scope, collaboration model (brainstorm → draft → approval → execution), non‑finite capability principle, guardrails, event taxonomy and the “ask before assuming” rule.  It was pasted into Emergent’s global prompt and stored as a document so all agents share the same rules.
+	•	Data contracts: Defined Mongo collections with UUID IDs and Phoenix‑time timestamps for Missions, Forums, Prospects (Rolodex), Hot Leads, Exports, Agents (AgentStatus), Guardrails and Events.  Each includes specific fields (e.g., mission counters, forum rule profile, prospect signals and engagement history, hot lead evidence/script/actions, export filter specs).  An event taxonomy records mission state changes, forum discoveries, prospect enrichments, hot‑lead statuses, export generation, guardrail updates and agent errors/retries.
+
+Backend & frontend implementation
+	•	Implemented the backend using FastAPI and MongoDB. Endpoints exist for creating/listing/updating missions, forums, prospects, hot leads, exports, agent statuses, guardrails and events.  A centralized log_event() writes to the Events collection.
+	•	Implemented the frontend with React and Tailwind.  Each page reflects the corresponding collection, with forms and controls for creation and state changes.  Mission Control uses a POST /api/mission_control/message endpoint to send messages to Praefectus; responses include “Understanding”, “Critique & Options”, a “Recommended Mission Draft” and “Open Questions”.  Research‑only missions prevent Legatus from activating.
+	•	Added a Phoenix‑time renderer so all timestamps display in America/Phoenix.  Configured CORS correctly.  Added mission, prospect and hot lead detail pages, and integrated a chat indicator for guardrail conflicts.
+	•	Added scenario helper endpoints for rapid testing: strict_rule_mission (seeds a help_only mission with strict forums and prospects), open_forum_plan (creates a help_plus_soft_marketing mission with open forums and insights), generate_hotlead (produces a hot-lead packet), export_shortcut (generates a CSV export) and agent_error_retry (simulates an Explorator error with a scheduled retry).
+
+Polish & enhancements
+	•	Added Research Mode: a third mission posture (research_only) that triggers Explorator scanning and enrichment while keeping Legatus idle.
+	•	Added the “Add Rule” modal to Guardrails for creating custom rules (research_only per forum, frequency caps, DM etiquette, sensitive‑topic escalations).  Mission Control warns when a mission posture conflicts with a guardrail.
+	•	On hot‑lead approval, the corresponding prospect’s engagement_history is now appended with a “closing_approved” entry, ensuring traceability.
+	•	Added CSV export generation and download functionality; Exports page now shows recipe creation, generation status and a download link.
+
+Outstanding issues
+	•	Legatus visibility: The Agents page currently lists only Praefectus and Explorator; Legatus does not always appear.
+	•	Explorator error state: When an agent error is simulated, Explorator remains red (error) even after the scheduled retry; its status should revert to green/yellow.
+	•	Partial code edit: The latest backend edit (update_prospect refactor) failed due to a linting error; this needs to be corrected to ensure the server starts cleanly.
+</optional_next_step>
