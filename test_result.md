@@ -262,7 +262,7 @@ agent_communication:
     - agent: "testing"
     - message: "COMPREHENSIVE P1 FRONTEND UX FLOWS TESTING COMPLETED: Executed extensive automated testing of all requested P1 UX flows focusing on preview error fix verification. ✅ Build renders without syntax errors - navigation fully functional across all pages. ✅ Mission Control: Sync Now toast working, Enter-to-send vs Shift+Enter newline functionality verified, Expand modal sections with Copy buttons (4 copy buttons tested). ✅ Missions Detail: Back to Missions button, state chip display, Override Pause/Resume/Abort dropdown, Duplicate button on aborted missions, Recent Events plain-English + raw JSON toggle, Insights add/edit with Phoenix timestamps. ✅ Forums: Create with URL functionality, link_status chips (ok/blocked), Retry updates, link disabled when not_found, real search links clickable. ✅ Agents: Three agents (Praefectus, Explorator, Legatus) always visible, Sync Now toast, Last event badges, polling refresh (5-second intervals). ✅ Guardrails: Inline etiquette help visible, Quick Templates insert/editable/persist, Open detail shows rule fields + history from events, Back functionality. ⚠️ Minor: Runtime error overlay detected (clipboard write permission denied) but app remains fully functional. ⚠️ Limited testing on Prospect Detail and Hot Lead Detail due to data availability. Total test execution: ~15 minutes with comprehensive UI interaction testing. All critical P1 UX flows verified working correctly."
 
-user_problem_statement: "Verify provider and chat endpoints and minimal MC flow: 1) GET /api/providers/models → expect list with raw OpenAI model ids 2) GET /api/providers/health → expect provider=openai and praefectus_model_id with gpt-5* selected 3) Create a thread: POST /api/mission_control/threads {\"title\":\"General\"} and store thread_id 4) Send message: POST /api/mission_control/message {\"thread_id\":thread_id, \"text\":\"Give me a one-line objective for exploring agent observability.\"} 5) Fetch thread: GET /api/mission_control/thread/{thread_id} → verify two messages (human + praefectus) with Phoenix timestamps 6) Summarize: POST /api/mission_control/summarize {\"thread_id\":thread_id} → get structured_text 7) Convert to draft: POST /api/mission_control/convert_to_draft {\"thread_id\":thread_id, \"fields_override\":{\"posture\":\"help_only\"}} 8) Approve: POST /api/mission_control/approve_draft {\"thread_id\":thread_id, \"draft\":{\"title\":\"Obs\",\"objective\":\"Test\",\"posture\":\"help_only\"}} 9) Start mission: POST /api/mission_control/start_mission {\"mission_id\": <from step 8>} Return payloads and pass/fail summary. Ensure timestamps are Phoenix ISO."
+user_problem_statement: "Phase 1 Conversational Mission Control backend verification using exact work order Option 1 flow: 1) GET /api/providers/models → expect list with raw OpenAI model ids 2) GET /api/providers/health → expect provider=openai and praefectus_model_id with gpt-5* selected 3) Create a thread: POST /api/mission_control/threads {\"title\":\"General\"} and store thread_id 4) Send message: POST /api/mission_control/message {\"thread_id\":thread_id, \"text\":\"Give me a one-line objective for exploring agent observability.\"} 5) Fetch thread: GET /api/mission_control/thread/{thread_id}?limit=50 → verify two messages (human + praefectus) ordered ascending by created_at with Phoenix ISO times 6) Summarize: POST /api/mission_control/summarize {\"thread_id\":thread_id} → expect structured_text non-empty + append chat note with event mission_summary_prepared 7) Convert to draft (no warnings): POST /api/mission_control/convert_to_draft {\"thread_id\":thread_id, \"fields_override\":{\"title\":\"Obs\",\"objective\":\"Test\",\"posture\":\"help_only\",\"audience\":\"ops leaders\",\"success_criteria\":[\"3 forums\"],\"risks\":[\"low engagement\"],\"approvals_needed\":[\"ops\"],\"notes\":\"n/a\"}} → expect approval_blocked=false 8) Approve draft: POST /api/mission_control/approve_draft {\"thread_id\":thread_id, \"draft\":{\"title\":\"Obs\",\"objective\":\"Test\",\"posture\":\"help_only\"}} → expect mission_id 9) Start mission: POST /api/mission_control/start_mission {\"mission_id\": <from step 8>} → expect ok=true 10) Events: GET /api/events?source=backend/mission_control limit 20 → confirm events praefectus_message_appended, mission_summary_prepared, mission_draft_prepared, mission_created, mission_started exist with Phoenix timestamps. Record all payloads, indicate pass/fail for each, and update test_sequence."
 
 backend:
   - task: "Provider endpoints verification"
@@ -271,7 +271,7 @@ backend:
     file: "/app/backend/providers/routes.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
         - working: true
         - agent: "testing"
@@ -283,7 +283,7 @@ backend:
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
         - working: true
         - agent: "testing"
