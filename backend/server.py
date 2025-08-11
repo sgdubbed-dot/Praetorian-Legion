@@ -159,6 +159,9 @@ class Forum(BaseModel):
     size_velocity: Optional[str] = None
     relevance_notes: Optional[str] = None
     last_seen_at: Optional[str] = None
+    # UX-10: link validation
+    link_status: Optional[str] = None  # ok | not_found | blocked
+    last_checked_at: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
