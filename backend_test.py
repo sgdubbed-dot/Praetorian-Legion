@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Backend API Testing for Praetorian Legion
-Focus: Agents logic verification as per review request
+Focus: P1 Items Verification - Health, Missions, Forums, Prospects, HotLeads
 """
 
 import requests
