@@ -92,8 +92,8 @@ export default function Agents() {
         </ul>
       </div>
       <div className="md:col-span-2 bg-white rounded shadow p-3">
-        {!selected and <div className="text-neutral-500">Select an agent to view activity.</div>}
-        {selected and (
+        {!selected && <div className="text-neutral-500">Select an agent to view activity.</div>}
+        {selected && (
           <div>
             <div className="flex items-center justify-between mb-2">
               <div className="text-lg font-semibold">{selected.agent_name} — Activity</div>
