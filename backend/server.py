@@ -915,6 +915,13 @@ async def create_guardrail(payload: Dict[str, Any]):
     await log_event("guardrail_updated", "backend/api", {"guardrail_id": doc["id"]})
     return doc
 
+@api.get("/guardrails/{guardrail_id}", tags=["guardrails"])
+async def get_guardrail(guardrail_id: str):
+    doc = await get_by_id(COLL_GUARDRAILS, guardrail_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Guardrail not found")
+    return doc
+
 @api.put("/guardrails/{guardrail_id}", tags=["guardrails"])
 async def update_guardrail(guardrail_id: str, payload: Dict[str, Any]):
     existing = await get_by_id(COLL_GUARDRAILS, guardrail_id)
