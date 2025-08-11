@@ -41,7 +41,10 @@ export default function Guardrails() {
           <option value="help_plus_soft_marketing">help_plus_soft_marketing</option>
           <option value="research_only">research_only</option>
         </select>
-        <input className="border rounded px-2 py-1" placeholder="DM etiquette" value={form.dm_etiquette} onChange={(e) => setForm({ ...form, dm_etiquette: e.target.value })} />
+        <div>
+          <input className="border rounded px-2 py-1 w-full" placeholder="DM etiquette" value={form.dm_etiquette} onChange={(e) => setForm({ ...form, dm_etiquette: e.target.value })} />
+          <div className="text-[11px] text-neutral-600 mt-1">No cold DMs; DM only after public opt-in; disclose affiliation; one nudge per 7 days; escalate sensitive topics for human approval.</div>
+        </div>
         <div className="flex gap-2">
           <button onClick={create} className="px-3 py-1 bg-neutral-800 text-white rounded">Create</button>
           <button onClick={() => setModalOpen(true)} className="px-3 py-1 bg-blue-600 text-white rounded">Add Rule</button>
