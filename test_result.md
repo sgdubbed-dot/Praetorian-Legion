@@ -448,13 +448,13 @@ backend:
 
 metadata:
   created_by: "testing_agent"
-  version: "1.1"
-  test_sequence: 2
-  run_ui: false
+  version: "1.2"
+  test_sequence: 3
+  run_ui: true
 
 test_plan:
   current_focus:
-    - "P1 Backend API verification completed"
+    - "P1 Frontend UX flows testing completed"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
