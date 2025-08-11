@@ -36,15 +36,12 @@ def to_phoenix(ts: Optional[str]) -> Optional[str]:
     if not ts:
         return ts
     try:
-        # Support 'Z' UTC and offset formats
         s = ts.replace("Z", "+00:00")
         dt = datetime.fromisoformat(s)
         if not dt.tzinfo:
-            # assume UTC if naive
             dt = dt.replace(tzinfo=ZoneInfo("UTC"))
         return dt.astimezone(PHOENIX_TZ).isoformat()
     except Exception:
-        # On parse failure, fallback to now in Phoenix
         return now_iso()
 
 # ID helper
@@ -67,14 +64,11 @@ COLL_EVENTS = db["Events"]
 async def insert_with_id(coll, doc: Dict[str, Any]) -> Dict[str, Any]:
     if "id" not in doc:
         doc["id"] = new_id()
-    # timestamps (Phoenix)
     created = doc.get("created_at", now_iso())
     doc["created_at"] = created
     doc["updated_at"] = doc.get("updated_at", created)
-    # avoid ObjectId by setting _id
     doc["_id"] = doc["id"]
     await coll.insert_one(doc)
-    # remove _id for API output
     doc.pop("_id", None)
     return doc
 
@@ -148,6 +142,8 @@ class MissionUpdate(BaseModel):
     agents_assigned: Optional[List[str]] = None
     counters: Optional[Dict[str, int]] = None
     insights: Optional[List[str]] = None
+    insights_rich: Optional[List[Dict[str, str]]] = None
+    previous_active_state: Optional[str] = None
 
 # Forum
 class Forum(BaseModel):
@@ -200,11 +196,6 @@ class Signal(BaseModel):
 class EngagementEntry(BaseModel):
     model_config = ConfigDict(extra="allow")
     channel: Optional[str] = None
-
-class AgentRetryCheck(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    agent_name: str
-
     content: Optional[str] = None
     timestamp: str = Field(default_factory=now_iso)
     outcome: Optional[str] = None
@@ -258,6 +249,7 @@ class ProspectUpdate(BaseModel):
     mission_tags: Optional[List[str]] = None
     platform_tags: Optional[List[str]] = None
     contact_public: Optional[Dict[str, Optional[str]]] = None
+    source_type: Optional[str] = None
 
 # HotLead
 class Evidence(BaseModel):
@@ -287,6 +279,10 @@ class HotLeadCreate(BaseModel):
 class HotLeadStatusUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     status: str  # approved|deferred|removed
+
+class HotLeadPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    proposed_script: Optional[str] = None
 
 # Export
 class Export(BaseModel):
@@ -399,6 +395,9 @@ async def health():
 @api.post("/missions", response_model=Mission, tags=["missions"])
 async def create_mission(payload: MissionCreate):
     mission = Mission(**payload.model_dump())
+    # Initialize insights_rich from insights if provided
+    if mission.insights and not mission.insights_rich:
+        mission.insights_rich = [{"text": t, "timestamp": now_iso()} for t in mission.insights]
     doc = await insert_with_id(COLL_MISSIONS, mission.model_dump())
     await log_event("mission_created", "backend/api", {"mission_id": doc["id"]})
     await ensure_legatus_idle_if_research_only_exists()
@@ -442,16 +441,32 @@ class MissionStateChange(BaseModel):
 
 @api.post("/missions/{mission_id}/state", response_model=Mission, tags=["missions"])
 async def change_mission_state(mission_id: str, payload: MissionStateChange):
-    updated = await update_by_id(COLL_MISSIONS, mission_id, {"state": payload.state})
-    if not updated:
+    mission = await get_by_id(COLL_MISSIONS, mission_id)
+    if not mission:
         raise HTTPException(status_code=404, detail="Mission not found")
+
+    new_state = payload.state
+    event = "mission_updated_state"
+
+    if payload.state == "resume":
+        # Resume to previous_active_state or scanning if unknown
+        prior = mission.get("previous_active_state") or "scanning"
+        new_state = prior
+        event = "mission_resumed"
+    elif payload.state == "abort" or payload.state == "aborted":
+        new_state = "aborted"
+        event = "mission_aborted"
+    elif payload.state == "paused":
+        event = "mission_paused"
+
+    # When pausing, store previous_active_state
+    update_fields: Dict[str, Any] = {"state": new_state}
+    if new_state == "paused" and mission.get("state") not in {"paused","complete","aborted"}:
+        update_fields["previous_active_state"] = mission.get("state")
+
+    await update_by_id(COLL_MISSIONS, mission_id, update_fields)
     doc = await get_by_id(COLL_MISSIONS, mission_id)
-    # Emit specific events
-    state_event = {
-        "paused": "mission_paused",
-        "complete": "mission_completed",
-    }.get(payload.state, "mission_updated_state")
-    await log_event(state_event, "backend/api", {"mission_id": mission_id, "state": payload.state})
+    await log_event(event, "backend/api", {"mission_id": mission_id, "state": new_state})
     await ensure_legatus_idle_if_research_only_exists()
     return doc
 
@@ -500,7 +515,7 @@ async def update_forum(forum_id: str, payload: ForumUpdate):
     if "url" in data and data["url"]:
         link_meta = await _check_url_status(data["url"])
         data.update(link_meta)
-    updated = await update_by_id(COLL_FORUMS, forum_id, data)
+    await update_by_id(COLL_FORUMS, forum_id, data)
     doc = await get_by_id(COLL_FORUMS, forum_id)
     if "rule_profile" in data and existing.get("rule_profile") != doc.get("rule_profile"):
         await log_event("forum_rule_profile_changed", "backend/api", {"forum_id": forum_id, "rule_profile": doc.get("rule_profile")})
@@ -597,6 +612,18 @@ async def update_hot_lead_status(hotlead_id: str, payload: HotLeadStatusUpdate):
                 "timestamp": now_iso(),
             })
             await update_by_id(COLL_ROLODEX, p["id"], {"engagement_history": history})
+    return doc
+
+@api.patch("/hotleads/{hotlead_id}", response_model=HotLead, tags=["hotleads"])
+async def patch_hot_lead(hotlead_id: str, payload: HotLeadPatch):
+    existing = await get_by_id(COLL_HOT_LEADS, hotlead_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="HotLead not found")
+    data = payload.model_dump(exclude_unset=True)
+    await update_by_id(COLL_HOT_LEADS, hotlead_id, data)
+    doc = await get_by_id(COLL_HOT_LEADS, hotlead_id)
+    if "proposed_script" in data:
+        await log_event("hotlead_script_edited", "backend/api", {"hotlead_id": hotlead_id})
     return doc
 
 # Mission Control Chat
@@ -768,7 +795,7 @@ async def upsert_agent_status(payload: AgentStatus):
         fixed_stream = []
         for entry in norm["activity_stream"]:
             if isinstance(entry, dict) and entry.get("timestamp"):
-                entry = {**entry, "timestamp": to_phoenix(entry["timestamp"])}
+                entry = {**entry, "timestamp": to_phoenix(entry["timestamp"]) }
             fixed_stream.append(entry)
         norm["activity_stream"] = fixed_stream
 
@@ -900,8 +927,8 @@ async def update_guardrail(guardrail_id: str, payload: Dict[str, Any]):
     return doc
 
 # Events (for auditing/logging)
-@api.get("/events", tags=["events"])
-async def list_events(limit: int = 200, mission_id: Optional[str] = None, hotlead_id: Optional[str] = None, prospect_id: Optional[str] = None, agent_name: Optional[str] = None):
+@api.get("/events", tags=["events"]) 
+async def list_events(limit: int = 200, mission_id: Optional[str] = None, hotlead_id: Optional[str] = None, prospect_id: Optional[str] = None, agent_name: Optional[str] = None, source: Optional[str] = None):
     q: Dict[str, Any] = {}
     if mission_id:
         q["payload.mission_id"] = mission_id
@@ -911,6 +938,8 @@ async def list_events(limit: int = 200, mission_id: Optional[str] = None, hotlea
         q["payload.prospect_id"] = prospect_id
     if agent_name:
         q["payload.agent_name"] = agent_name
+    if source:
+        q["source"] = source
     cursor = COLL_EVENTS.find(q).sort("timestamp", -1).limit(limit)
     docs = await cursor.to_list(limit)
     return [{k: v for k, v in d.items() if k != "_id"} for d in docs]
@@ -943,8 +972,8 @@ async def scenario_strict_rule_mission():
         await create_forum(ForumCreate(platform=plat, name=name, url=url, rule_profile="strict_help_only", topic_tags=tags))
         count_forums += 1
     # Add a couple prospects
-    p1 = await create_prospect(ProspectCreate(name_or_alias="Alex Doe", handles={"linkedin": "alexdoe"}, priority_state="warm"))
-    p2 = await create_prospect(ProspectCreate(name_or_alias="Sam Lee", handles={"github": "samlee"}, priority_state="cold"))
+    p1 = await create_prospect(ProspectCreate(name_or_alias="Alex Doe", handles={"linkedin": "alexdoe"}, priority_state="warm", source_type="seeded"))
+    p2 = await create_prospect(ProspectCreate(name_or_alias="Sam Lee", handles={"github": "samlee"}, priority_state="cold", source_type="seeded"))
     # Update mission counters
     counters = m["counters"]
     counters["forums_found"] += count_forums
@@ -978,7 +1007,7 @@ async def scenario_generate_hotlead():
     if prospects:
         pid = prospects[0].get("_id") or prospects[0].get("id")
     else:
-        p = await create_prospect(ProspectCreate(name_or_alias="Jordan Kim", handles={"linkedin":"jordank"}, priority_state="hot", signals=[Signal(type="post", quote="We need agent observability now", link="https://example.com").model_dump()]))
+        p = await create_prospect(ProspectCreate(name_or_alias="Jordan Kim", handles={"linkedin":"jordank"}, priority_state="hot", signals=[Signal(type="post", quote="We need agent observability now", link="https://example.com").model_dump()], source_type="seeded"))
         pid = p["id"]
     hl = await create_hot_lead(HotLeadCreate(
         prospect_id=str(pid),

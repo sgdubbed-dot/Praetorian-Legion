@@ -11,6 +11,9 @@ export default function MissionControl() {
   const [missionForm, setMissionForm] = useState({ title: "", objective: "", posture: "help_only" });
   const [mcReply, setMcReply] = useState(null);
   const [guardrails, setGuardrails] = useState([]);
+  const [syncing, setSyncing] = useState(false);
+  const [toast, setToast] = useState("");
+  const [expandOpen, setExpandOpen] = useState(false);
 
   const refresh = async () => {
     try {
@@ -33,7 +36,6 @@ export default function MissionControl() {
   }, []);
 
   const postureConflict = useMemo(() => {
-    // Warn if missionForm.posture conflicts with any posture guardrail (e.g., research_only rules exist but posture is marketing)
     const hasResearchOnly = guardrails.some((g) => g.default_posture === "research_only" || (g.type === "posture" && g.value === "research_only"));
     if (hasResearchOnly && missionForm.posture === "help_plus_soft_marketing") return "Guardrail conflict: Research-only in effect. No public engagement allowed.";
     return null;
@@ -56,6 +58,18 @@ export default function MissionControl() {
     }
   };
 
+  const onSyncNow = async () => {
+    setSyncing(true);
+    try {
+      await refresh();
+      const t = phoenixTime(new Date().toISOString());
+      setToast(`Synced at ${t}`);
+      setTimeout(() => setToast(""), 2000);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const sendMessage = async () => {
     if (!chatInput.trim()) return;
     const human = { who: "human", content: chatInput.trim(), timestamp: new Date().toISOString() };
@@ -68,6 +82,13 @@ export default function MissionControl() {
       await appendPraefectusActivity({ who: "Praefectus", content: `Recommended Draft: ${res.data.recommended_mission_draft?.title}` , timestamp: new Date().toISOString() });
     } catch (e) {
       console.error("PAGE ERROR:", e?.name || e?.message || e);
+    }
+  };
+
+  const sendOnKey = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
     }
   };
 
@@ -97,8 +118,11 @@ export default function MissionControl() {
       <div className="lg:col-span-2 bg-white rounded shadow p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Mission Control — Praefectus</h2>
-          <button onClick={refresh} className="text-sm px-2 py-1 bg-neutral-800 text-white rounded">Refresh</button>
+          <button aria-label="Sync Now" onClick={onSyncNow} className="text-sm px-2 py-1 bg-neutral-800 text-white rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500">
+            {syncing ? "Syncing..." : "Sync Now"}
+          </button>
         </div>
+        {toast && <div className="mb-2 text-sm px-2 py-1 bg-green-100 text-green-800 rounded inline-block">{toast}</div>}
         <div className="h-[420px] overflow-y-auto space-y-2 border rounded p-3 bg-neutral-50">
           {messages.length === 0 && (
             <div className="text-sm text-neutral-500">No activity yet. Say hello to Praefectus.</div>
@@ -113,11 +137,11 @@ export default function MissionControl() {
           ))}
         </div>
         <div className="mt-3 flex gap-2">
-          <input className="flex-1 border rounded px-3 py-2" placeholder="Type a message to Praefectus..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} />
-          <button onClick={sendMessage} className="px-4 py-2 bg-blue-600 text-white rounded">Send</button>
+          <textarea aria-label="Message to Praefectus" className="flex-1 border rounded px-3 py-2" rows={2} placeholder="Type a message to Praefectus... (Enter to send, Shift+Enter for newline)" value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={sendOnKey} />
+          <button aria-label="Send" onClick={sendMessage} className="px-4 py-2 bg-blue-600 text-white rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600">Send</button>
         </div>
 
-        {mcReply && (
+        {mcReply and (
           <div className="mt-4 border rounded p-3 bg-white">
             <div className="font-semibold mb-2">Praefectus Reply</div>
             <div className="text-sm mb-1"><span className="font-medium">Understanding:</span> {mcReply.understanding}</div>
@@ -133,7 +157,47 @@ export default function MissionControl() {
               </ul>
             </div>
             <div className="flex gap-2">
-              <button onClick={approveDraft} className="px-3 py-1 bg-green-600 text-white rounded text-sm">Approve Draft</button>
+              <button aria-label="Approve Draft" onClick={approveDraft} className="px-3 py-1 bg-green-600 text-white rounded text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600">Approve Draft</button>
+              <button aria-label="Expand Reply" onClick={() => setExpandOpen(true)} className="px-3 py-1 bg-neutral-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500">Expand</button>
+            </div>
+          </div>
+        )}
+
+        {expandOpen and mcReply and (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+            <div className="bg-white rounded shadow p-4 w-full max-w-2xl">
+              <div className="text-lg font-semibold mb-2">Praefectus Reply</div>
+              <div className="space-y-3 text-sm">
+                <div>
+                  <div className="font-medium">Understanding</div>
+                  <div className="whitespace-pre-wrap bg-neutral-50 p-2 rounded border">{mcReply.understanding}</div>
+                  <button onClick={() => navigator.clipboard.writeText(mcReply.understanding)} className="mt-1 text-xs px-2 py-1 bg-neutral-800 text-white rounded">Copy</button>
+                </div>
+                <div>
+                  <div className="font-medium">Critique & Options</div>
+                  <div className="bg-neutral-50 p-2 rounded border">
+                    <ul className="list-disc pl-5">
+                      {mcReply.critique_options.map((c, i) => <li key={i}>{c}</li>)}
+                    </ul>
+                  </div>
+                  <button onClick={() => navigator.clipboard.writeText(mcReply.critique_options.join("\n"))} className="mt-1 text-xs px-2 py-1 bg-neutral-800 text-white rounded">Copy</button>
+                </div>
+                <div>
+                  <div className="font-medium">Recommended Draft</div>
+                  <pre className="bg-neutral-50 p-2 rounded border whitespace-pre-wrap">{JSON.stringify(mcReply.recommended_mission_draft, null, 2)}</pre>
+                  <button onClick={() => navigator.clipboard.writeText(JSON.stringify(mcReply.recommended_mission_draft, null, 2))} className="mt-1 text-xs px-2 py-1 bg-neutral-800 text-white rounded">Copy</button>
+                </div>
+                <div>
+                  <div className="font-medium">Open Questions</div>
+                  <ul className="list-disc pl-5 bg-neutral-50 p-2 rounded border">
+                    {mcReply.open_questions.map((q, i) => <li key={i}>{q}</li>)}
+                  </ul>
+                  <button onClick={() => navigator.clipboard.writeText(mcReply.open_questions.join("\n"))} className="mt-1 text-xs px-2 py-1 bg-neutral-800 text-white rounded">Copy</button>
+                </div>
+              </div>
+              <div className="mt-3 flex justify-end gap-2">
+                <button onClick={() => setExpandOpen(false)} className="px-3 py-1 bg-neutral-200 rounded">Close</button>
+              </div>
             </div>
           </div>
         )}
@@ -149,9 +213,9 @@ export default function MissionControl() {
               <div className="text-xs text-neutral-500">Prospect: {hl.prospect_id.slice(0, 8)}</div>
               <div className="text-xs">Evidence: {hl.evidence?.[0]?.quote || "-"}</div>
               <div className="mt-2 flex gap-2">
-                <button onClick={() => api.post(`/hotleads/${hl.id}/status`, { status: "approved" }).then(refresh)} className="px-2 py-1 bg-green-600 text-white text-xs rounded">Approve</button>
-                <button onClick={() => api.post(`/hotleads/${hl.id}/status`, { status: "deferred" }).then(refresh)} className="px-2 py-1 bg-yellow-600 text-white text-xs rounded">Defer</button>
-                <button onClick={() => api.post(`/hotleads/${hl.id}/status`, { status: "removed" }).then(refresh)} className="px-2 py-1 bg-red-600 text-white text-xs rounded">Reject</button>
+                <button aria-label="Approve" onClick={() => api.post(`/hotleads/${hl.id}/status`, { status: "approved" }).then(refresh)} className="px-2 py-1 bg-green-600 text-white text-xs rounded">Approve</button>
+                <button aria-label="Defer" onClick={() => api.post(`/hotleads/${hl.id}/status`, { status: "deferred" }).then(refresh)} className="px-2 py-1 bg-yellow-600 text-white text-xs rounded">Defer</button>
+                <button aria-label="Reject" onClick={() => api.post(`/hotleads/${hl.id}/status`, { status: "removed" }).then(refresh)} className="px-2 py-1 bg-red-600 text-white text-xs rounded">Reject</button>
               </div>
             </div>
           ))}
@@ -159,11 +223,11 @@ export default function MissionControl() {
 
         <div>
           <h3 className="font-semibold mb-2">Draft Mission</h3>
-          {postureConflict && (<div className="mb-2 p-2 bg-yellow-100 text-yellow-800 rounded text-sm">{postureConflict}</div>)}
+          {postureConflict and (<div className="mb-2 p-2 bg-yellow-100 text-yellow-800 rounded text-sm">{postureConflict}</div>)}
           <div className="space-y-2">
-            <input className="w-full border rounded px-2 py-1" placeholder="Title" value={missionForm.title} onChange={(e) => setMissionForm({ ...missionForm, title: e.target.value })} />
-            <textarea className="w-full border rounded px-2 py-1" placeholder="Objective" value={missionForm.objective} onChange={(e) => setMissionForm({ ...missionForm, objective: e.target.value })} />
-            <select className="w-full border rounded px-2 py-1" value={missionForm.posture} onChange={(e) => setMissionForm({ ...missionForm, posture: e.target.value })}>
+            <input aria-label="Mission Title" className="w-full border rounded px-2 py-1" placeholder="Title" value={missionForm.title} onChange={(e) => setMissionForm({ ...missionForm, title: e.target.value })} />
+            <textarea aria-label="Mission Objective" className="w-full border rounded px-2 py-1" rows={3} placeholder="Objective" value={missionForm.objective} onChange={(e) => setMissionForm({ ...missionForm, objective: e.target.value })} />
+            <select aria-label="Mission Posture" className="w-full border rounded px-2 py-1" value={missionForm.posture} onChange={(e) => setMissionForm({ ...missionForm, posture: e.target.value })}>
               <option value="help_only">help_only</option>
               <option value="help_plus_soft_marketing">help_plus_soft_marketing</option>
               <option value="research_only">research_only</option>

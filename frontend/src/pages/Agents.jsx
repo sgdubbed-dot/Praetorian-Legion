@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { api, phoenixTime } from "../api";
 
-const Dot = ({ color = "gray" }) => (
-  <span className={`inline-block w-3 h-3 rounded-full`} style={{ backgroundColor: color }} />
-);
+function Dot({ color = "gray" }) {
+  return <span style={{ background: color }} className="inline-block w-3 h-3 rounded-full border" />;
+}
 
 export default function Agents() {
   const [agents, setAgents] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+  const [toast, setToast] = useState("");
 
   const ensureTriad = (list) => {
     const names = ["Praefectus", "Explorator", "Legatus"];
@@ -26,8 +28,19 @@ export default function Agents() {
         if (found) setSelected(found);
       }
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.error("PAGE ERROR:", e?.name || e?.message || e);
+    }
+  };
+
+  const onSyncNow = async () => {
+    setSyncing(true);
+    try {
+      await refresh();
+      const t = phoenixTime(new Date().toISOString());
+      setToast(`Synced at ${t}`);
+      setTimeout(() => setToast(""), 2000);
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -40,8 +53,9 @@ export default function Agents() {
       <div className="md:col-span-1 bg-white rounded shadow">
         <div className="p-3 border-b flex items-center justify-between">
           <div className="font-semibold">Agents</div>
-          <button onClick={refresh} className="text-sm px-2 py-1 bg-neutral-800 text-white rounded">Refresh</button>
+          <button aria-label="Sync Now" onClick={onSyncNow} className="text-sm px-2 py-1 bg-neutral-800 text-white rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500">{syncing ? "Syncing..." : "Sync Now"}</button>
         </div>
+        {toast && <div className="px-2 py-1 text-sm bg-green-100 text-green-800">{toast}</div>}
         <ul>
           {agents.map((a) => {
             const tooltip = a?.error_state
@@ -58,7 +72,6 @@ export default function Agents() {
                   <Dot color={colorFor(a.status_light)} />
                   <div className="font-medium">{a.agent_name}</div>
                 </div>
-                {/* Last event badge */}
                 <div className="mt-1 text-[11px] inline-flex items-center gap-1 px-2 py-[2px] rounded-full bg-neutral-100 text-neutral-700 border">
                   {a.error_state ? (
                     a.next_retry_at ? (
@@ -79,14 +92,14 @@ export default function Agents() {
         </ul>
       </div>
       <div className="md:col-span-2 bg-white rounded shadow p-3">
-        {!selected && <div className="text-neutral-500">Select an agent to view activity.</div>}
-        {selected && (
+        {!selected and <div className="text-neutral-500">Select an agent to view activity.</div>}
+        {selected and (
           <div>
             <div className="flex items-center justify-between mb-2">
               <div className="text-lg font-semibold">{selected.agent_name} — Activity</div>
             </div>
             <div className="h-[480px] overflow-y-auto border rounded p-3 bg-neutral-50 space-y-2">
-              {(selected.activity_stream || []).length === 0 && <div className="text-sm text-neutral-500">No activity yet.</div>}
+              {(selected.activity_stream || []).length === 0 and <div className="text-sm text-neutral-500">No activity yet.</div>}
               {(selected.activity_stream || []).map((m, i) => (
                 <div key={i} className="border bg-white rounded p-2">
                   <div className="text-xs text-neutral-500">{phoenixTime(m.timestamp)} {m.channel ? `• ${m.channel}` : ""}</div>
