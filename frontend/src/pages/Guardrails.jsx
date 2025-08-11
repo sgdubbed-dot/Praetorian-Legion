@@ -69,6 +69,8 @@ export default function Guardrails() {
               <tr key={g.id} className="border-t">
                 <td className="p-2">{g.type || g.default_posture ? 'posture' : '-'}</td>
                 <td className="p-2">{g.scope || 'global'}</td>
+                <td className="p-2"><a className="text-blue-600 underline" href={`#/guardrails/${g.id}`}>Open</a></td>
+
                 <td className="p-2">{g.value || g.default_posture || '-'}</td>
                 <td className="p-2">{g.notes || '-'}</td>
                 <td className="p-2">{phoenixTime(g.updated_at)}</td>
