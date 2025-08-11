@@ -11,6 +11,7 @@ import ProspectDetail from "./pages/ProspectDetail";
 import HotLeads from "./pages/HotLeads";
 import HotLeadDetail from "./pages/HotLeadDetail";
 import Guardrails from "./pages/Guardrails";
+import GuardrailDetail from "./pages/GuardrailDetail";
 import Exports from "./pages/Exports";
 
 const NavBar = () => (
