@@ -3,19 +3,10 @@ from .factory import get_llm_client
 from .selector import select_praefectus_default_model
 from typing import Dict, Any
 
-# These will be replaced by project helpers when included from server
+# Import server helpers to ensure events are logged centrally
+from server import now_iso, log_event  # type: ignore
+
 router = APIRouter(prefix="/api/providers", tags=["providers"])
-
-# Fallback Phoenix time helper (server will override by dependency)
-
-def now_iso():
-    import datetime, zoneinfo
-    tz = zoneinfo.ZoneInfo("America/Phoenix")
-    return datetime.datetime.now(tz).isoformat()
-
-async def log_event(name: str, source: str, payload: Dict[str, Any]):
-    return True
-
 @router.get("/models")
 async def list_models():
     client = get_llm_client()
