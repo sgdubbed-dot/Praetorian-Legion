@@ -803,13 +803,17 @@ class BackendTester:
                 self.log_result('phoenix_timestamp_events', False, f'Events timestamp check error: {e}', None, duration)
 
     def run_all_tests(self):
-        """Run all P1 backend API tests"""
-        print(f"Starting P1 Backend API Tests - Base URL: {API_BASE}")
+        """Run all backend API tests including new provider and mission control tests"""
+        print(f"Starting Backend API Tests - Base URL: {API_BASE}")
         print("=" * 80)
         
         start_time = time.time()
         
-        # Run P1 tests in order
+        # Run provider and mission control tests first (as per review request)
+        self.test_provider_endpoints()
+        self.test_mission_control_flow()
+        
+        # Run existing P1 tests
         self.test_health_endpoint()
         self.test_mission_state_transitions()
         self.test_mission_insights_migration()
@@ -822,7 +826,7 @@ class BackendTester:
         
         # Summary
         print("\n" + "=" * 80)
-        print("P1 BACKEND API TEST SUMMARY")
+        print("BACKEND API TEST SUMMARY")
         print("=" * 80)
         
         passed = sum(1 for r in self.results if r['success'])
