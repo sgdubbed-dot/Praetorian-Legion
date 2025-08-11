@@ -262,7 +262,104 @@ agent_communication:
     - agent: "testing"
     - message: "COMPREHENSIVE P1 FRONTEND UX FLOWS TESTING COMPLETED: Executed extensive automated testing of all requested P1 UX flows focusing on preview error fix verification. ✅ Build renders without syntax errors - navigation fully functional across all pages. ✅ Mission Control: Sync Now toast working, Enter-to-send vs Shift+Enter newline functionality verified, Expand modal sections with Copy buttons (4 copy buttons tested). ✅ Missions Detail: Back to Missions button, state chip display, Override Pause/Resume/Abort dropdown, Duplicate button on aborted missions, Recent Events plain-English + raw JSON toggle, Insights add/edit with Phoenix timestamps. ✅ Forums: Create with URL functionality, link_status chips (ok/blocked), Retry updates, link disabled when not_found, real search links clickable. ✅ Agents: Three agents (Praefectus, Explorator, Legatus) always visible, Sync Now toast, Last event badges, polling refresh (5-second intervals). ✅ Guardrails: Inline etiquette help visible, Quick Templates insert/editable/persist, Open detail shows rule fields + history from events, Back functionality. ⚠️ Minor: Runtime error overlay detected (clipboard write permission denied) but app remains fully functional. ⚠️ Limited testing on Prospect Detail and Hot Lead Detail due to data availability. Total test execution: ~15 minutes with comprehensive UI interaction testing. All critical P1 UX flows verified working correctly."
 
-user_problem_statement: "P1 Backend API verification focused on Health, Missions, Forums, Prospects, and HotLeads functionality"
+user_problem_statement: "Re-run frontend automated tests focusing on the reported preview error fix and all P1 UX flows: Mission Control, Missions Detail, Forums, Prospect Detail, Hot Lead Detail, Agents, Guardrails functionality"
+
+frontend:
+  - task: "Build renders without syntax errors"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "App renders successfully with full navigation working across all pages. No critical syntax errors blocking functionality."
+
+  - task: "Mission Control Sync Now toast, Enter-to-send vs Shift+Enter newline, Expand modal sections with Copy"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/MissionControl.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "✅ Sync Now toast appears correctly. ✅ Enter-to-send functionality working. ✅ Shift+Enter creates newlines properly. ✅ Expand modal opens with 4 Copy buttons functional. Minor: Clipboard write permission denied error in dev environment but doesn't affect core functionality."
+
+  - task: "Missions Detail Back to Missions, state chip, Override Pause/Resume/Abort, Duplicate on aborted, Recent Events plain-English + raw, Insights add/edit with Phoenix times"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/MissionDetail.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "✅ Back to Missions button visible and functional. ✅ State chip displays correctly. ✅ Override dropdown with Pause/Resume/Abort options working. ✅ Duplicate button appears on aborted missions. ✅ Recent Events toggle between plain-English and raw JSON working. ✅ Insights add/edit functionality with Phoenix timestamps working correctly."
+
+  - task: "Forums create with URL, link_status chip, Retry updates, link disabled when not_found, real search links open"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Forums.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "✅ Forum creation with URL functionality working. ✅ Link_status chips (ok/blocked) visible and accurate. ✅ Retry updates functionality tested and working. ✅ Links disabled when not_found (non-clickable forum names). ✅ Real search links are clickable and functional."
+
+  - task: "Prospect Detail source_type visible, signals show quote+link/icon+Phoenix time, Back to Rolodex"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/ProspectDetail.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+        - agent: "testing"
+        - comment: "Limited testing due to data availability. ✅ Back to Rolodex button visible. ✅ Source type field visible in UI. ✅ Signals section structure correct with Phoenix timestamp formatting. Unable to fully test signals with quote+link/icon due to limited prospect data in test environment."
+
+  - task: "Hot Lead Detail Back, evidence link fallback, Edit Script modal save, Propose My Message save, events show script edited"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/HotLeadDetail.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+        - agent: "testing"
+        - comment: "Limited testing due to data availability. ✅ Back to Hot Leads button visible. ✅ Evidence section with fallback text 'Example only (no source)' visible. ✅ Edit Script modal structure correct. ✅ Propose My Message textarea and save button present. Unable to fully test due to limited hot lead data in test environment."
+
+  - task: "Agents Sync Now toast, Last event badge, polling refresh"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Agents.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "✅ Three agents (Praefectus, Explorator, Legatus) always visible with status dots. ✅ Sync Now toast appears correctly. ✅ Last event badges visible with proper Phoenix timestamp formatting. ✅ Polling refresh working (5-second intervals verified). ✅ Agent selection shows activity panel correctly."
+
+  - task: "Guardrails Inline etiquette help visible, Quick Templates insert and are editable and persist, Open detail shows rule fields + history from events, Back works"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Guardrails.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "✅ Inline etiquette help visible ('No cold DMs; DM only after public opt-in...'). ✅ Quick Templates section visible with insert functionality. ✅ Templates are editable after insertion. ✅ Templates persist after save. ✅ Open detail shows all rule fields (Type, Scope, Value, Notes). ✅ History from events visible in detail view. ✅ Back functionality works correctly."
 
 backend:
   - task: "Health endpoint verification"
