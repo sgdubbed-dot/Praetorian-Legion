@@ -262,7 +262,164 @@ agent_communication:
     - agent: "testing"
     - message: "COMPREHENSIVE P1 FRONTEND UX FLOWS TESTING COMPLETED: Executed extensive automated testing of all requested P1 UX flows focusing on preview error fix verification. ✅ Build renders without syntax errors - navigation fully functional across all pages. ✅ Mission Control: Sync Now toast working, Enter-to-send vs Shift+Enter newline functionality verified, Expand modal sections with Copy buttons (4 copy buttons tested). ✅ Missions Detail: Back to Missions button, state chip display, Override Pause/Resume/Abort dropdown, Duplicate button on aborted missions, Recent Events plain-English + raw JSON toggle, Insights add/edit with Phoenix timestamps. ✅ Forums: Create with URL functionality, link_status chips (ok/blocked), Retry updates, link disabled when not_found, real search links clickable. ✅ Agents: Three agents (Praefectus, Explorator, Legatus) always visible, Sync Now toast, Last event badges, polling refresh (5-second intervals). ✅ Guardrails: Inline etiquette help visible, Quick Templates insert/editable/persist, Open detail shows rule fields + history from events, Back functionality. ⚠️ Minor: Runtime error overlay detected (clipboard write permission denied) but app remains fully functional. ⚠️ Limited testing on Prospect Detail and Hot Lead Detail due to data availability. Total test execution: ~15 minutes with comprehensive UI interaction testing. All critical P1 UX flows verified working correctly."
 
-user_problem_statement: "Re-run frontend automated tests focusing on the reported preview error fix and all P1 UX flows: Mission Control, Missions Detail, Forums, Prospect Detail, Hot Lead Detail, Agents, Guardrails functionality"
+user_problem_statement: "Verify provider and chat endpoints and minimal MC flow: 1) GET /api/providers/models → expect list with raw OpenAI model ids 2) GET /api/providers/health → expect provider=openai and praefectus_model_id with gpt-5* selected 3) Create a thread: POST /api/mission_control/threads {\"title\":\"General\"} and store thread_id 4) Send message: POST /api/mission_control/message {\"thread_id\":thread_id, \"text\":\"Give me a one-line objective for exploring agent observability.\"} 5) Fetch thread: GET /api/mission_control/thread/{thread_id} → verify two messages (human + praefectus) with Phoenix timestamps 6) Summarize: POST /api/mission_control/summarize {\"thread_id\":thread_id} → get structured_text 7) Convert to draft: POST /api/mission_control/convert_to_draft {\"thread_id\":thread_id, \"fields_override\":{\"posture\":\"help_only\"}} 8) Approve: POST /api/mission_control/approve_draft {\"thread_id\":thread_id, \"draft\":{\"title\":\"Obs\",\"objective\":\"Test\",\"posture\":\"help_only\"}} 9) Start mission: POST /api/mission_control/start_mission {\"mission_id\": <from step 8>} Return payloads and pass/fail summary. Ensure timestamps are Phoenix ISO."
+
+backend:
+  - task: "Provider endpoints verification"
+    implemented: true
+    working: true
+    file: "/app/backend/providers/routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "✅ GET /api/providers/models returned 82 models with raw OpenAI model ids. ✅ GET /api/providers/health returned provider=openai and praefectus_model_id=gpt-5-chat-latest with Phoenix timestamps. Both endpoints working correctly."
+
+  - task: "Mission Control complete flow verification"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "✅ Complete 9-step Mission Control flow executed successfully: (1) Thread created with thread_id, (2) Message sent and assistant responded (140 chars), (3) Thread fetched with 2 messages (human + praefectus) with Phoenix timestamps, (4) Thread summarized with structured_text (1137 chars), (5) Draft created with posture=help_only, (6) Draft approved and mission created, (7) Mission started successfully. All payloads captured and Phoenix ISO timestamps verified throughout."
+
+  - task: "Health endpoint verification"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Both GET /api/health and GET /api/ endpoints working correctly. Health returns {ok: true, timestamp} and root returns API ready message. Response times: 55ms and 6ms respectively."
+
+  - task: "Agents seeding and presence"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "All three agents (Praefectus, Explorator, Legatus) are properly seeded and persist across calls. Idempotency verified with two consecutive GET /api/agents calls."
+
+  - task: "Research-only Legatus logic"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Legatus correctly transitions to yellow when research_only mission is active, and transitions to green when mission is completed (due to existing approved hotleads or other factors). Logic working as expected."
+
+  - task: "Explorator error and auto-reset logic"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Minor: Explorator error detection and status changes work correctly. Agent transitions to red with error_state=crawl_timeout and next_retry_at set. Status correctly changes to green due to active missions, but error_state and next_retry_at fields not cleared (minor backend logic issue). Core functionality works - agent status reflects correct operational state."
+
+  - task: "Events endpoint functionality"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Events endpoint working correctly. General /api/events returns event list, agent-specific filtering works (?agent_name=Explorator). All expected event types found: agent_error_detected, agent_retry_scheduled, agent_error_cleared, agent_status_changed. Phoenix timezone timestamps present."
+
+  - task: "Mission state transitions and events"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "All mission state transitions working correctly: Create mission→PATCH to paused (stores previous_active_state)→POST /missions/{id}/state resume (restores to previous state)→POST abort (sets to aborted). Events mission_paused, mission_resumed, mission_aborted all properly emitted."
+
+  - task: "Mission insights migration"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Mission insights_rich auto-population working correctly. GET mission after creation auto-populates insights_rich from legacy insights with proper structure {text, timestamp}. Migration logic functioning as expected."
+
+  - task: "Forum link validation"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Forum link validation working correctly. POST /forums with reachable URL sets link_status='ok' and last_checked_at. Invalid URLs set link_status='blocked' with timestamp. POST /forums/{id}/check_link properly updates status and timestamp."
+
+  - task: "Prospect source_type defaults"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Prospect source_type defaults working correctly. POST /prospects without source_type defaults to 'manual'. Scenario endpoints (scenario_strict_rule_mission) create prospects with source_type='seeded' as expected."
+
+  - task: "HotLead script editing and events"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "HotLead script editing working correctly. PATCH /hotleads/{id} successfully updates proposed_script field and emits hotlead_script_edited event as expected."
+
+  - task: "Phoenix timestamp verification"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "Phoenix timestamps verified across all endpoints. Health endpoint, events, and all API responses include proper Phoenix timezone format (-07:00) as required."
 
 frontend:
   - task: "Build renders without syntax errors"
