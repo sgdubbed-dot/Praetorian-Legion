@@ -445,8 +445,12 @@ async def change_mission_state(mission_id: str, payload: MissionStateChange):
 @api.post("/forums", response_model=Forum, tags=["forums"])
 async def create_forum(payload: ForumCreate):
     forum = Forum(**payload.model_dump())
+    # LEGION-UX-10: validate link
+    link_meta = await _check_url_status(forum.url)
+    forum.link_status = link_meta["link_status"]
+    forum.last_checked_at = link_meta["last_checked_at"]
     doc = await insert_with_id(COLL_FORUMS, forum.model_dump())
-    await log_event("forum_discovered", "backend/api", {"forum_id": doc["id"]})
+    await log_event("forum_discovered", "backend/api", {"forum_id": doc["id"], **link_meta})
     return doc
 
 @api.get("/forums", response_model=List[Forum], tags=["forums"])
