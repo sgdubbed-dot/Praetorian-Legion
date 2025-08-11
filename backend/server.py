@@ -414,6 +414,11 @@ async def get_mission(mission_id: str):
     doc = await get_by_id(COLL_MISSIONS, mission_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Mission not found")
+    # Migration: if insights_rich empty but legacy insights exist, convert once
+    if (not doc.get("insights_rich")) and doc.get("insights"):
+        rich = [{"text": t, "timestamp": now_iso()} for t in (doc.get("insights") or [])]
+        await update_by_id(COLL_MISSIONS, mission_id, {"insights_rich": rich})
+        doc = await get_by_id(COLL_MISSIONS, mission_id)
     return doc
 
 @api.patch("/missions/{mission_id}", response_model=Mission, tags=["missions"])
