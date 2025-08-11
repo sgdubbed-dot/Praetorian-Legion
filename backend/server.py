@@ -470,9 +470,14 @@ async def update_forum(forum_id: str, payload: ForumUpdate):
     existing = await get_by_id(COLL_FORUMS, forum_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Forum not found")
-    updated = await update_by_id(COLL_FORUMS, forum_id, payload.model_dump(exclude_unset=True))
+    data = payload.model_dump(exclude_unset=True)
+    # If URL changed, re-check link
+    if "url" in data and data["url"]:
+        link_meta = await _check_url_status(data["url"])
+        data.update(link_meta)
+    updated = await update_by_id(COLL_FORUMS, forum_id, data)
     doc = await get_by_id(COLL_FORUMS, forum_id)
-    if "rule_profile" in payload.model_dump(exclude_unset=True) and existing.get("rule_profile") != doc.get("rule_profile"):
+    if "rule_profile" in data and existing.get("rule_profile") != doc.get("rule_profile"):
         await log_event("forum_rule_profile_changed", "backend/api", {"forum_id": forum_id, "rule_profile": doc.get("rule_profile")})
     else:
         await log_event("forum_updated", "backend/api", {"forum_id": forum_id})
