@@ -141,7 +141,7 @@ export default function MissionControl() {
           <button aria-label="Send" onClick={sendMessage} className="px-4 py-2 bg-blue-600 text-white rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600">Send</button>
         </div>
 
-        {mcReply and (
+        {mcReply && (
           <div className="mt-4 border rounded p-3 bg-white">
             <div className="font-semibold mb-2">Praefectus Reply</div>
             <div className="text-sm mb-1"><span className="font-medium">Understanding:</span> {mcReply.understanding}</div>
