@@ -99,7 +99,7 @@ export default function Agents() {
               <div className="text-lg font-semibold">{selected.agent_name} — Activity</div>
             </div>
             <div className="h-[480px] overflow-y-auto border rounded p-3 bg-neutral-50 space-y-2">
-              {(selected.activity_stream || []).length === 0 and <div className="text-sm text-neutral-500">No activity yet.</div>}
+              {(selected.activity_stream || []).length === 0 && <div className="text-sm text-neutral-500">No activity yet.</div>}
               {(selected.activity_stream || []).map((m, i) => (
                 <div key={i} className="border bg-white rounded p-2">
                   <div className="text-xs text-neutral-500">{phoenixTime(m.timestamp)} {m.channel ? `• ${m.channel}` : ""}</div>
