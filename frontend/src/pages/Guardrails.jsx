@@ -6,6 +6,7 @@ export default function Guardrails() {
   const [form, setForm] = useState({ default_posture: "help_only", frequency_caps: { dm_per_week: 1 }, sensitive_topics: ["politics","religion"], standing_permissions: [], dm_etiquette: "" });
   const [modalOpen, setModalOpen] = useState(false);
   const [rule, setRule] = useState({ type: "", scope: "global", value: "", notes: "" });
+  const insertTemplate = (tpl) => setRule({ ...rule, ...tpl });
   const [warn, setWarn] = useState(null);
 
   const refresh = async () => setItems((await api.get(`/guardrails`)).data);
