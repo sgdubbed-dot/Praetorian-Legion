@@ -82,7 +82,13 @@ To restore:
 
 ## 6) Guardrails
 - List/add via UI (Guardrails tab) or API (/api/guardrails).
-- You can add posture, frequency caps, DM etiquette, and escalation rules.
+- You can add posture, frequency caps, DM etiquette, scope blocks, and escalation rules.
+- Inline DM etiquette guidance: "No cold DMs; DM only after public opt-in; disclose affiliation; one nudge per 7 days; escalate sensitive topics for human approval."
+- Quick templates (in Add Rule modal):
+  - Frequency cap → {"type":"frequency_cap","value":"1 reply / 24h / user"}
+  - Posture → {"type":"posture","value":"help_only"}
+  - Scope block → {"type":"scope_block","value":"no posting in r/<subreddit>"}
+- Detail view: Click Open to view/edit a rule and see history from /api/events?source=guardrails
 - Mission Control shows a warning when a draft posture conflicts with guardrails.
 
 ## 7) Research Mode
