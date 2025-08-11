@@ -338,6 +338,27 @@ class GuardrailUpdate(BaseModel):
     pass
 
 # ------------------ Helpers ------------------
+async def _check_url_status(url: str) -> Dict[str, Any]:
+    import aiohttp
+    status = "blocked"
+    try:
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.head(url, allow_redirects=True, timeout=10) as resp:
+                    code = resp.status
+            except Exception:
+                async with session.get(url, allow_redirects=True, timeout=10) as resp:
+                    code = resp.status
+        if 200 <= code < 400:
+            status = "ok"
+        elif code == 404:
+            status = "not_found"
+        else:
+            status = "blocked"
+    except Exception:
+        status = "blocked"
+    return {"link_status": status, "last_checked_at": now_iso()}
+
 async def ensure_legatus_idle_if_research_only_exists():
     # If any non-complete, non-paused mission with research_only posture exists, set Legatus to yellow
     active = await COLL_MISSIONS.count_documents({
