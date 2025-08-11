@@ -626,75 +626,213 @@ async def patch_hot_lead(hotlead_id: str, payload: HotLeadPatch):
         await log_event("hotlead_script_edited", "backend/api", {"hotlead_id": hotlead_id})
     return doc
 
-# Mission Control Chat
-class MCMessage(BaseModel):
+# Mission Control — Threads and Messages
+class Thread(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    thread_id: str = Field(default_factory=new_id)
+    title: str
+    mission_id: Optional[str] = None
+    synopsis: Optional[str] = None
+    message_count: int = 0
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+class ThreadCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str
+    mission_id: Optional[str] = None
+
+class Message(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(default_factory=new_id)
+    thread_id: str
+    mission_id: Optional[str] = None
+    role: str  # human | praefectus
     text: str
-    approve: Optional[bool] = False
-    reject: Optional[bool] = False
-    draft: Optional[Dict[str, Any]] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: str = Field(default_factory=now_iso)
 
-class MCReply(BaseModel):
+COLL_THREADS = db["Threads"]
+COLL_MESSAGES = db["Messages"]
+
+from providers.selector import select_praefectus_default_model
+from providers.factory import get_llm_client
+
+SYSTEM_PROMPT = (
+    "You are Praefectus, the orchestrator for Praetorian Legion. "
+    "Hold a helpful, expert, collaborative tone. Respond in clear, concise prose. "
+    "No JSON unless explicitly requested."
+)
+
+@api.post("/mission_control/threads", tags=["mission_control"])
+async def create_thread(payload: ThreadCreate):
+    t = Thread(title=payload.title, mission_id=payload.mission_id)
+    doc = t.model_dump()
+    doc["_id"] = doc["thread_id"]
+    await COLL_THREADS.insert_one(doc)
+    await log_event("thread_created", "backend/mission_control", {"thread_id": t.thread_id})
+    return {"thread_id": t.thread_id}
+
+@api.get("/mission_control/threads", tags=["mission_control"])
+async def list_threads(mission_id: Optional[str] = None):
+    q: Dict[str, Any] = {}
+    if mission_id:
+        q["mission_id"] = mission_id
+    threads = await COLL_THREADS.find(q).sort("updated_at", -1).to_list(100)
+    if not threads:
+        # Auto-create General on first load
+        gen = Thread(title="General")
+        gdoc = gen.model_dump(); gdoc["_id"] = gen.thread_id
+        await COLL_THREADS.insert_one(gdoc)
+        threads = [gdoc]
+    for d in threads:
+        d.pop("_id", None)
+    return threads
+
+@api.get("/mission_control/thread/{thread_id}", tags=["mission_control"])
+async def get_thread(thread_id: str, limit: int = 50, before: Optional[str] = None):
+    th = await COLL_THREADS.find_one({"_id": thread_id})
+    if not th:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    before_time = None
+    if before:
+        m = await COLL_MESSAGES.find_one({"_id": before})
+        if m:
+            before_time = m.get("created_at")
+    mq: Dict[str, Any] = {"thread_id": thread_id}
+    if before_time:
+        mq["created_at"] = {"$lt": before_time}
+    msgs = await COLL_MESSAGES.find(mq).sort("created_at", -1).limit(limit).to_list(limit)
+    for d in msgs:
+        d.pop("_id", None)
+    th.pop("_id", None)
+    return {"thread": th, "messages": list(reversed(msgs))}
+
+class MCChatInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    understanding: str
-    critique_options: List[str]
-    recommended_mission_draft: Dict[str, Any]
-    open_questions: List[str]
+    thread_id: str
+    text: str
 
-@api.post("/mission_control/message", response_model=MCReply, tags=["mission_control"])
-async def mission_control_message(payload: MCMessage):
-    text = payload.text.strip()
-    wants_research = any(k in text.lower() for k in ["research", "map", "discover"])
-    posture = "research_only" if wants_research else "help_only"
-    draft = payload.draft or {
-        "title": (text[:48] + "...") if len(text) > 48 else (text or "New Mission"),
-        "objective": text or "Explore and summarize findings",
-        "posture": posture,
-        "state": "draft",
-    }
-    reply = MCReply(
-        understanding=f"You asked to {'research/map' if wants_research else 'assist'}: {text[:180]}",
-        critique_options=[
-            "Scope clarity: define target persona precisely",
-            "Success criteria: specify measurable outcomes",
-            "Guardrails: confirm per-forum posture & etiquette",
-        ],
-        recommended_mission_draft=draft,
-        open_questions=[
-            "Which platforms are highest priority?",
-            "Any sensitive topics to avoid?",
-        ],
+@api.post("/mission_control/message", tags=["mission_control"])
+async def mission_control_post_message(payload: MCChatInput):
+    txt = (payload.text or "").strip()
+    if not payload.thread_id or not txt:
+        raise HTTPException(status_code=400, detail="thread_id and text are required")
+    th = await COLL_THREADS.find_one({"_id": payload.thread_id})
+    if not th:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    # Append human
+    human = Message(thread_id=payload.thread_id, mission_id=th.get("mission_id"), role="human", text=txt)
+    hdoc = human.model_dump(); hdoc["_id"] = human.id
+    await COLL_MESSAGES.insert_one(hdoc)
+    # LLM call
+    client = get_llm_client()
+    model_id = select_praefectus_default_model()
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": txt},
+    ]
+    try:
+        resp = client.chat(model_id=model_id, messages=messages, temperature=0.3, max_tokens=800)
+        assistant_text = resp.get("text", "")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM error: {e}")
+    # Append assistant
+    assistant = Message(thread_id=payload.thread_id, mission_id=th.get("mission_id"), role="praefectus", text=assistant_text)
+    adoc = assistant.model_dump(); adoc["_id"] = assistant.id
+    await COLL_MESSAGES.insert_one(adoc)
+    # Update thread counters
+    await COLL_THREADS.update_one({"_id": payload.thread_id}, {"$set": {"updated_at": now_iso()}, "$inc": {"message_count": 2}})
+    await log_event("praefectus_message_appended", "backend/mission_control", {"thread_id": payload.thread_id, "model_id": model_id})
+    return {"assistant": {"text": assistant_text, "created_at": assistant.created_at}}
+
+class SummarizeInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    thread_id: str
+
+@api.post("/mission_control/summarize", tags=["mission_control"])
+async def mission_control_summarize(payload: SummarizeInput):
+    th = await COLL_THREADS.find_one({"_id": payload.thread_id})
+    if not th:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    msgs = await COLL_MESSAGES.find({"thread_id": payload.thread_id}).sort("created_at", 1).to_list(200)
+    convo = "\n".join([f"{m.get('role')}: {m.get('text')}" for m in msgs])
+    prompt = (
+        "Summarize the conversation into a mission draft. Return fields as plain bullet prose (no JSON):\n"
+        "Title, Objective, Posture (help_only/help_plus_soft_marketing/research_only), Audience, Success Criteria (list), Risks (list), Approvals Needed (list), Notes.\n\n" + convo
     )
-    await log_event("mission_draft_submitted", "Praefectus", {"draft": draft})
-    await log_event("approval_requested", "Praefectus", {"draft": draft})
+    client = get_llm_client(); model_id = select_praefectus_default_model()
+    r = client.chat(model_id=model_id, messages=[{"role":"system","content":SYSTEM_PROMPT}, {"role":"user","content": prompt}], temperature=0.3, max_tokens=800)
+    # Append short assistant note
+    note = Message(thread_id=payload.thread_id, role="praefectus", text="Summary ready. Open Draft panel.")
+    ndoc = note.model_dump(); ndoc["_id"] = note.id
+    await COLL_MESSAGES.insert_one(ndoc)
+    await COLL_THREADS.update_one({"_id": payload.thread_id}, {"$set": {"updated_at": now_iso()}, "$inc": {"message_count": 1}})
+    await log_event("mission_summary_prepared", "backend/mission_control", {"thread_id": payload.thread_id})
+    # For Phase 1, return the raw assistant text split into fields client-side
+    return {"structured_text": r.get("text", ""), "timestamp": now_iso()}
 
-    await append_agent_activity("Praefectus", {"who": "human", "content": text, "timestamp": now_iso()})
-    await append_agent_activity("Praefectus", {"who": "Praefectus", "content": f"Draft proposed: {draft['title']}", "timestamp": now_iso()})
+class ConvertToDraftInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    thread_id: str
+    fields_override: Optional[Dict[str, Any]] = None
 
-    if payload.reject:
-        await log_event("approval_rejected", "backend/api", {"draft": draft})
-        return reply
+@api.post("/mission_control/convert_to_draft", tags=["mission_control"])
+async def mission_control_convert_to_draft(payload: ConvertToDraftInput):
+    warnings: List[str] = []
+    approval_blocked = False
+    draft = payload.fields_override or {}
+    posture = draft.get("posture") or "help_only"
+    # Simple guardrail check
+    guards = await COLL_GUARDRAILS.find().to_list(200)
+    has_research_only = any((g.get("default_posture") == "research_only") or (g.get("type") == "posture" and g.get("value") == "research_only") for g in guards)
+    if posture == "help_plus_soft_marketing" and has_research_only:
+        warnings.append("Guardrail requires research_only; marketing disabled.")
+        approval_blocked = True
+    await log_event("mission_draft_prepared", "backend/mission_control", {"thread_id": payload.thread_id, "posture": posture})
+    return {"draft": draft, "warnings": warnings, "approval_blocked": approval_blocked, "timestamp": now_iso()}
 
-    if payload.approve:
-        created = await create_mission(MissionCreate(**{
-            "title": draft.get("title", "New Mission"),
-            "objective": draft.get("objective", text or "Explore"),
-            "posture": draft.get("posture", posture),
-            "state": "draft",
-        }))
-        await log_event("approval_granted", "backend/api", {"mission_id": created["id"]})
-        if created.get("posture") == "research_only":
-            samples = [
-                ForumCreate(platform="Reddit", name="r/agentops", url="https://reddit.com/r/agentops", rule_profile="strict_help_only", topic_tags=["agents","ops"]),
-                ForumCreate(platform="StackOverflow", name="agentops tag", url="https://stackoverflow.com/questions/tagged/agentops", rule_profile="strict_help_only", topic_tags=["agentops"]),
-            ]
-            for f in samples:
-                try:
-                    await create_forum(f)
-                except Exception:
-                    pass
-        await ensure_legatus_idle_if_research_only_exists()
-    return reply
+class ApproveDraftInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    thread_id: str
+    draft: Dict[str, Any]
+    confirm_override: Optional[bool] = False
+
+@api.post("/mission_control/approve_draft", tags=["mission_control"])
+async def mission_control_approve_draft(payload: ApproveDraftInput):
+    # Re-check guardrails
+    warnings: List[str] = []
+    approval_blocked = False
+    posture = payload.draft.get("posture") or "help_only"
+    guards = await COLL_GUARDRAILS.find().to_list(200)
+    has_research_only = any((g.get("default_posture") == "research_only") or (g.get("type") == "posture" and g.get("value") == "research_only") for g in guards)
+    if posture == "help_plus_soft_marketing" and has_research_only and not payload.confirm_override:
+        warnings.append("Guardrail requires research_only; marketing disabled.")
+        approval_blocked = True
+        return {"warnings": warnings, "approval_blocked": approval_blocked}
+    created = await create_mission(MissionCreate(**{
+        "title": payload.draft.get("title", "New Mission"),
+        "objective": payload.draft.get("objective", "Explore and summarize findings"),
+        "posture": posture,
+        "state": "scanning",
+    }))
+    # Link thread to mission
+    await COLL_THREADS.update_one({"_id": payload.thread_id}, {"$set": {"mission_id": created["id"], "updated_at": now_iso()}})
+    await log_event("mission_created", "backend/mission_control", {"mission_id": created["id"], "thread_id": payload.thread_id})
+    return {"mission_id": created["id"], "timestamp": now_iso()}
+
+class StartMissionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mission_id: str
+
+@api.post("/mission_control/start_mission", tags=["mission_control"])
+async def mission_control_start_mission(payload: StartMissionInput):
+    doc = await get_by_id(COLL_MISSIONS, payload.mission_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Mission not found")
+    await update_by_id(COLL_MISSIONS, payload.mission_id, {"state": "engaging"})
+    await log_event("mission_started", "backend/mission_control", {"mission_id": payload.mission_id})
+    return {"ok": True, "mission_id": payload.mission_id, "timestamp": now_iso()}
 
 # Exports (CSV generation + download)
 async def filter_prospects_for_export(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
