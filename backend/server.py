@@ -117,7 +117,7 @@ class Mission(BaseModel):
     title: str
     objective: str
     posture: str  # help_only | help_plus_soft_marketing | research_only
-    state: str  # draft|scanning|engaging|escalating|paused|complete
+    state: str  # draft|scanning|engaging|escalating|paused|complete|aborted
     agents_assigned: List[str] = Field(default_factory=list)
     counters: Dict[str, int] = Field(default_factory=lambda: {
         "forums_found": 0,
@@ -125,6 +125,8 @@ class Mission(BaseModel):
         "hot_leads": 0,
     })
     insights: List[str] = Field(default_factory=list)
+    insights_rich: List[Dict[str, str]] = Field(default_factory=list)
+    previous_active_state: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
