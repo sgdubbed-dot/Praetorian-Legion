@@ -474,6 +474,17 @@ async def get_forum(forum_id: str):
         raise HTTPException(status_code=404, detail="Forum not found")
     return doc
 
+@api.post("/forums/{forum_id}/check_link", tags=["forums"])
+async def forum_check_link(forum_id: str):
+    doc = await get_by_id(COLL_FORUMS, forum_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Forum not found")
+    meta = await _check_url_status(doc["url"])
+    await update_by_id(COLL_FORUMS, forum_id, meta)
+    out = await get_by_id(COLL_FORUMS, forum_id)
+    await log_event("forum_link_checked", "backend/api", {"forum_id": forum_id, **meta})
+    return out
+
 @api.patch("/forums/{forum_id}", response_model=Forum, tags=["forums"])
 async def update_forum(forum_id: str, payload: ForumUpdate):
     existing = await get_by_id(COLL_FORUMS, forum_id)
