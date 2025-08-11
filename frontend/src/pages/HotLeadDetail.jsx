@@ -97,7 +97,7 @@ export default function HotLeadDetail() {
         </ul>
       </div>
 
-      {editOpen and (
+      {editOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
           <div className="bg-white rounded shadow p-4 w-full max-w-xl">
             <div className="text-lg font-semibold mb-2">Edit Proposed Script</div>
