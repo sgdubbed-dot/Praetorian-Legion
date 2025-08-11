@@ -718,13 +718,24 @@ class MCChatInput(BaseModel):
 @api.post("/mission_control/message", tags=["mission_control"])
 async def mission_control_post_message(payload: MCChatInput):
     txt = (payload.text or "").strip()
-    if not payload.thread_id or not txt:
-        raise HTTPException(status_code=400, detail="thread_id and text are required")
-    th = await COLL_THREADS.find_one({"_id": payload.thread_id})
+    if not txt:
+        raise HTTPException(status_code=400, detail="text is required")
+    # Default to General thread if none provided
+    thread_id = payload.thread_id
+    if not thread_id:
+        gen = await COLL_THREADS.find_one({"title": "General"})
+        if not gen:
+            # create General
+            gen_t = Thread(title="General")
+            gdoc = gen_t.model_dump(); gdoc["_id"] = gen_t.thread_id
+            await COLL_THREADS.insert_one(gdoc)
+            gen = gdoc
+        thread_id = gen.get("_id") or gen.get("thread_id")
+    th = await COLL_THREADS.find_one({"_id": thread_id})
     if not th:
         raise HTTPException(status_code=404, detail="Thread not found")
     # Append human
-    human = Message(thread_id=payload.thread_id, mission_id=th.get("mission_id"), role="human", text=txt)
+    human = Message(thread_id=thread_id, mission_id=th.get("mission_id"), role="human", text=txt)
     hdoc = human.model_dump(); hdoc["_id"] = human.id
     await COLL_MESSAGES.insert_one(hdoc)
     # LLM call
