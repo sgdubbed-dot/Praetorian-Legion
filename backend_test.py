@@ -515,6 +515,258 @@ class BackendTester:
         else:
             self.log_result('hotlead_script_event', False, f'HotLead script event check failed: {response}', None, duration)
 
+    def test_provider_endpoints(self):
+        """Test provider endpoints for models and health"""
+        print("\n=== Provider Endpoints Test ===")
+        
+        # Test GET /api/providers/models
+        success, response, duration = self.make_request('GET', '/providers/models')
+        if success:
+            try:
+                data = response.json()
+                models = data.get('models', [])
+                timestamp = data.get('timestamp', '')
+                
+                # Check if we have models list with raw OpenAI model ids
+                if isinstance(models, list) and len(models) > 0:
+                    # Look for model structure with 'id' field
+                    has_model_ids = any(isinstance(m, dict) and 'id' in m for m in models)
+                    if has_model_ids:
+                        self.log_result('providers_models', True, 
+                                      f'Providers models endpoint returned {len(models)} models with ids', 
+                                      {'model_count': len(models), 'sample_models': models[:3]}, duration)
+                    else:
+                        self.log_result('providers_models', False, 
+                                      f'Providers models missing id fields in models: {models[:2]}', 
+                                      data, duration)
+                else:
+                    self.log_result('providers_models', False, 
+                                  f'Providers models returned invalid models list: {models}', 
+                                  data, duration)
+            except Exception as e:
+                self.log_result('providers_models', False, f'Providers models JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('providers_models', False, f'Providers models endpoint failed: {response}', None, duration)
+        
+        # Test GET /api/providers/health
+        success, response, duration = self.make_request('GET', '/providers/health')
+        if success:
+            try:
+                data = response.json()
+                provider = data.get('provider')
+                praefectus_model_id = data.get('praefectus_model_id')
+                timestamp = data.get('timestamp')
+                
+                # Check for expected provider=openai and praefectus_model_id with gpt-5*
+                provider_ok = provider == 'openai'
+                model_ok = praefectus_model_id and 'gpt-5' in str(praefectus_model_id).lower()
+                timestamp_ok = timestamp and ('-07:00' in timestamp or 'MST' in timestamp)
+                
+                if provider_ok and model_ok:
+                    self.log_result('providers_health', True, 
+                                  f'Providers health: provider={provider}, model={praefectus_model_id}', 
+                                  data, duration)
+                else:
+                    self.log_result('providers_health', False, 
+                                  f'Providers health failed - provider: {provider}, model: {praefectus_model_id}', 
+                                  data, duration)
+            except Exception as e:
+                self.log_result('providers_health', False, f'Providers health JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('providers_health', False, f'Providers health endpoint failed: {response}', None, duration)
+
+    def test_mission_control_flow(self):
+        """Test complete Mission Control flow as specified in review request"""
+        print("\n=== Mission Control Flow Test ===")
+        
+        # Step 1: Create a thread
+        thread_data = {"title": "General"}
+        success, response, duration = self.make_request('POST', '/mission_control/threads', thread_data)
+        if not success:
+            self.log_result('mc_create_thread', False, f'Failed to create thread: {response}', None, duration)
+            return
+            
+        try:
+            thread_result = response.json()
+            thread_id = thread_result.get('thread_id')
+            if not thread_id:
+                self.log_result('mc_create_thread', False, 'Thread creation returned no thread_id', thread_result, duration)
+                return
+            self.log_result('mc_create_thread', True, f'Thread created: {thread_id}', thread_result, duration)
+        except Exception as e:
+            self.log_result('mc_create_thread', False, f'Thread creation JSON parse error: {e}', None, duration)
+            return
+        
+        # Step 2: Send message
+        message_data = {
+            "thread_id": thread_id,
+            "text": "Give me a one-line objective for exploring agent observability."
+        }
+        success, response, duration = self.make_request('POST', '/mission_control/message', message_data)
+        if success:
+            try:
+                message_result = response.json()
+                assistant_text = message_result.get('assistant', {}).get('text', '')
+                created_at = message_result.get('assistant', {}).get('created_at', '')
+                
+                if assistant_text and created_at:
+                    self.log_result('mc_send_message', True, 
+                                  f'Message sent and assistant responded: {len(assistant_text)} chars', 
+                                  {'assistant_text': assistant_text[:100] + '...', 'created_at': created_at}, duration)
+                else:
+                    self.log_result('mc_send_message', False, 
+                                  f'Message response incomplete - text: {bool(assistant_text)}, created_at: {bool(created_at)}', 
+                                  message_result, duration)
+            except Exception as e:
+                self.log_result('mc_send_message', False, f'Message send JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('mc_send_message', False, f'Message send failed: {response}', None, duration)
+            return
+        
+        # Step 3: Fetch thread to verify two messages with Phoenix timestamps
+        success, response, duration = self.make_request('GET', f'/mission_control/thread/{thread_id}')
+        if success:
+            try:
+                thread_data = response.json()
+                messages = thread_data.get('messages', [])
+                
+                if len(messages) >= 2:
+                    # Check for human and praefectus messages
+                    roles = [msg.get('role') for msg in messages]
+                    has_human = 'human' in roles
+                    has_praefectus = 'praefectus' in roles
+                    
+                    # Check Phoenix timestamps
+                    phoenix_timestamps = 0
+                    for msg in messages:
+                        created_at = msg.get('created_at', '')
+                        if '-07:00' in created_at or 'MST' in created_at:
+                            phoenix_timestamps += 1
+                    
+                    if has_human and has_praefectus and phoenix_timestamps >= 2:
+                        self.log_result('mc_fetch_thread', True, 
+                                      f'Thread has {len(messages)} messages (human + praefectus) with Phoenix timestamps', 
+                                      {'message_count': len(messages), 'roles': roles, 'phoenix_count': phoenix_timestamps}, duration)
+                    else:
+                        self.log_result('mc_fetch_thread', False, 
+                                      f'Thread messages incomplete - human: {has_human}, praefectus: {has_praefectus}, phoenix: {phoenix_timestamps}', 
+                                      {'messages': messages}, duration)
+                else:
+                    self.log_result('mc_fetch_thread', False, 
+                                  f'Thread has insufficient messages: {len(messages)}', 
+                                  thread_data, duration)
+            except Exception as e:
+                self.log_result('mc_fetch_thread', False, f'Fetch thread JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('mc_fetch_thread', False, f'Fetch thread failed: {response}', None, duration)
+            return
+        
+        # Step 4: Summarize
+        summarize_data = {"thread_id": thread_id}
+        success, response, duration = self.make_request('POST', '/mission_control/summarize', summarize_data)
+        if success:
+            try:
+                summary_result = response.json()
+                structured_text = summary_result.get('structured_text', '')
+                timestamp = summary_result.get('timestamp', '')
+                
+                if structured_text and timestamp:
+                    self.log_result('mc_summarize', True, 
+                                  f'Thread summarized: {len(structured_text)} chars', 
+                                  {'structured_text': structured_text[:200] + '...', 'timestamp': timestamp}, duration)
+                else:
+                    self.log_result('mc_summarize', False, 
+                                  f'Summarize incomplete - text: {bool(structured_text)}, timestamp: {bool(timestamp)}', 
+                                  summary_result, duration)
+            except Exception as e:
+                self.log_result('mc_summarize', False, f'Summarize JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('mc_summarize', False, f'Summarize failed: {response}', None, duration)
+            return
+        
+        # Step 5: Convert to draft
+        draft_data = {
+            "thread_id": thread_id,
+            "fields_override": {"posture": "help_only"}
+        }
+        success, response, duration = self.make_request('POST', '/mission_control/convert_to_draft', draft_data)
+        if success:
+            try:
+                draft_result = response.json()
+                draft = draft_result.get('draft', {})
+                warnings = draft_result.get('warnings', [])
+                approval_blocked = draft_result.get('approval_blocked', False)
+                
+                if isinstance(draft, dict):
+                    self.log_result('mc_convert_to_draft', True, 
+                                  f'Draft created with posture: {draft.get("posture")}, blocked: {approval_blocked}', 
+                                  {'draft': draft, 'warnings': warnings}, duration)
+                else:
+                    self.log_result('mc_convert_to_draft', False, 
+                                  f'Draft conversion failed - invalid draft: {draft}', 
+                                  draft_result, duration)
+            except Exception as e:
+                self.log_result('mc_convert_to_draft', False, f'Convert to draft JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('mc_convert_to_draft', False, f'Convert to draft failed: {response}', None, duration)
+            return
+        
+        # Step 6: Approve draft
+        approve_data = {
+            "thread_id": thread_id,
+            "draft": {
+                "title": "Obs",
+                "objective": "Test",
+                "posture": "help_only"
+            }
+        }
+        success, response, duration = self.make_request('POST', '/mission_control/approve_draft', approve_data)
+        if success:
+            try:
+                approve_result = response.json()
+                mission_id = approve_result.get('mission_id')
+                timestamp = approve_result.get('timestamp')
+                
+                if mission_id:
+                    self.created_resources['missions'].append(mission_id)
+                    self.log_result('mc_approve_draft', True, 
+                                  f'Draft approved, mission created: {mission_id}', 
+                                  approve_result, duration)
+                else:
+                    self.log_result('mc_approve_draft', False, 
+                                  f'Draft approval failed - no mission_id returned', 
+                                  approve_result, duration)
+                    return
+            except Exception as e:
+                self.log_result('mc_approve_draft', False, f'Approve draft JSON parse error: {e}', None, duration)
+                return
+        else:
+            self.log_result('mc_approve_draft', False, f'Approve draft failed: {response}', None, duration)
+            return
+        
+        # Step 7: Start mission
+        start_data = {"mission_id": mission_id}
+        success, response, duration = self.make_request('POST', '/mission_control/start_mission', start_data)
+        if success:
+            try:
+                start_result = response.json()
+                ok = start_result.get('ok')
+                returned_mission_id = start_result.get('mission_id')
+                timestamp = start_result.get('timestamp')
+                
+                if ok and returned_mission_id == mission_id:
+                    self.log_result('mc_start_mission', True, 
+                                  f'Mission started successfully: {mission_id}', 
+                                  start_result, duration)
+                else:
+                    self.log_result('mc_start_mission', False, 
+                                  f'Mission start failed - ok: {ok}, mission_id: {returned_mission_id}', 
+                                  start_result, duration)
+            except Exception as e:
+                self.log_result('mc_start_mission', False, f'Start mission JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('mc_start_mission', False, f'Start mission failed: {response}', None, duration)
+
     def verify_phoenix_timestamps(self):
         """Verify Phoenix timestamps across all responses"""
         print("\n=== Verifying Phoenix Timestamps ===")
