@@ -416,11 +416,16 @@ async def get_mission(mission_id: str):
 
 @api.patch("/missions/{mission_id}", response_model=Mission, tags=["missions"])
 async def update_mission(mission_id: str, payload: MissionUpdate):
-    updated = await update_by_id(COLL_MISSIONS, mission_id, payload.model_dump(exclude_unset=True))
-    if not updated:
-        raise HTTPException(status_code=404, detail="Mission not found or not modified")
+    existing = await get_by_id(COLL_MISSIONS, mission_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Mission not found")
+    data = payload.model_dump(exclude_unset=True)
+    # Track previous_active_state when pausing from an active state
+    if data.get("state") == "paused" and existing.get("state") not in {"paused","complete","aborted"}:
+        data["previous_active_state"] = existing.get("state")
+    updated = await update_by_id(COLL_MISSIONS, mission_id, data)
     doc = await get_by_id(COLL_MISSIONS, mission_id)
-    await log_event("mission_updated_state" if payload.state else "mission_created", "backend/api", {"mission_id": mission_id, **payload.model_dump(exclude_unset=True)})
+    await log_event("mission_updated_state" if payload.state else "mission_created", "backend/api", {"mission_id": mission_id, **data})
     await ensure_legatus_idle_if_research_only_exists()
     return doc
 
