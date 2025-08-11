@@ -710,8 +710,10 @@ async def get_thread(thread_id: str, limit: int = 50, before: Optional[str] = No
 
 class MCChatInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    thread_id: str
+    thread_id: Optional[str] = None
     text: str
+    approve: Optional[bool] = False
+    draft: Optional[Dict[str, Any]] = None
 
 @api.post("/mission_control/message", tags=["mission_control"])
 async def mission_control_post_message(payload: MCChatInput):
