@@ -494,9 +494,12 @@ async def update_forum(forum_id: str, payload: ForumUpdate):
 # Prospects (Rolodex)
 @api.post("/prospects", response_model=Prospect, tags=["prospects"])
 async def create_prospect(payload: ProspectCreate):
-    prospect = Prospect(**payload.model_dump())
+    data = payload.model_dump()
+    if not data.get("source_type"):
+        data["source_type"] = "manual"
+    prospect = Prospect(**data)
     doc = await insert_with_id(COLL_ROLODEX, prospect.model_dump())
-    await log_event("prospect_added", "backend/api", {"prospect_id": doc["id"]})
+    await log_event("prospect_added", "backend/api", {"prospect_id": doc["id"], "source_type": doc.get("source_type")})
     return doc
 
 @api.get("/prospects", response_model=List[Prospect], tags=["prospects"])
