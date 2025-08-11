@@ -223,7 +223,7 @@ export default function MissionControl() {
 
         <div>
           <h3 className="font-semibold mb-2">Draft Mission</h3>
-          {postureConflict and (<div className="mb-2 p-2 bg-yellow-100 text-yellow-800 rounded text-sm">{postureConflict}</div>)}
+          {postureConflict && (<div className="mb-2 p-2 bg-yellow-100 text-yellow-800 rounded text-sm">{postureConflict}</div>)}
           <div className="space-y-2">
             <input aria-label="Mission Title" className="w-full border rounded px-2 py-1" placeholder="Title" value={missionForm.title} onChange={(e) => setMissionForm({ ...missionForm, title: e.target.value })} />
             <textarea aria-label="Mission Objective" className="w-full border rounded px-2 py-1" rows={3} placeholder="Objective" value={missionForm.objective} onChange={(e) => setMissionForm({ ...missionForm, objective: e.target.value })} />
