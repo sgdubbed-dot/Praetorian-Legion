@@ -1043,7 +1043,9 @@ async def scenario_agent_error_retry(payload: RetryWindow | None = None):
     return {"ok": True, "agent": doc}
 
 # Mount router
+from providers.routes import router as providers_router
 app.include_router(api)
+app.include_router(providers_router)
 
 # CORS (origins from env)
 _cors_origins_raw = os.environ.get("CORS_ORIGINS", "*")
