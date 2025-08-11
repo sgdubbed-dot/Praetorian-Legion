@@ -242,6 +242,7 @@ class ProspectCreate(BaseModel):
     mission_tags: List[str] = Field(default_factory=list)
     platform_tags: List[str] = Field(default_factory=list)
     contact_public: Dict[str, Optional[str]] = Field(default_factory=dict)
+    source_type: Optional[str] = None  # seeded|discovered|manual
 
 class ProspectUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
