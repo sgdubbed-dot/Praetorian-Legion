@@ -224,6 +224,7 @@ class Prospect(BaseModel):
     mission_tags: List[str] = Field(default_factory=list)
     platform_tags: List[str] = Field(default_factory=list)
     contact_public: Dict[str, Optional[str]] = Field(default_factory=dict)
+    source_type: str = "manual"  # seeded|discovered|manual
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
