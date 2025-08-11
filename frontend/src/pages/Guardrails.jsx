@@ -92,6 +92,16 @@ export default function Guardrails() {
               <button onClick={() => setModalOpen(false)} className="px-3 py-1 bg-neutral-200 rounded">Cancel</button>
               <button onClick={addRule} className="px-3 py-1 bg-blue-600 text-white rounded">Save Rule</button>
             </div>
+      <div className="mt-4 bg-white rounded shadow p-3">
+        <div className="font-semibold mb-2">Quick Templates</div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => insertTemplate({ type: "frequency_cap", value: "1 reply / 24h / user" })} className="px-2 py-1 text-xs bg-neutral-200 rounded">Frequency cap</button>
+          <button onClick={() => insertTemplate({ type: "posture", value: "help_only" })} className="px-2 py-1 text-xs bg-neutral-200 rounded">Posture: help_only</button>
+          <button onClick={() => insertTemplate({ type: "scope_block", value: "no posting in r/<subreddit>" })} className="px-2 py-1 text-xs bg-neutral-200 rounded">Scope block</button>
+        </div>
+        <div className="text-xs text-neutral-600 mt-1">Templates prefill the rule form; you can edit values before saving.</div>
+      </div>
+
           </div>
         </div>
       )}
