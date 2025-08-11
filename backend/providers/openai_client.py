@@ -6,9 +6,9 @@ from .llm_adapter import LLMAdapter
 
 class OpenAIClient(LLMAdapter):
     def __init__(self):
-        key = os.getenv("EMERGENT_LLM_KEY")
+        key = os.getenv("OPENAI_API_KEY")
         if not key:
-            raise RuntimeError("EMERGENT_LLM_KEY is not set")
+            raise RuntimeError("OPENAI_API_KEY is not set")
         # OpenAI client will read api_key parameter
         self._client = OpenAI(api_key=key)
 
