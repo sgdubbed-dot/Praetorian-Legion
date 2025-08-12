@@ -106,12 +106,24 @@ export default function MissionControl() {
   const sendMessage = async () => {
     const content = (chatInput || "").trim();
     if (!content) return;
-    if (!selectedThreadId) return; // wait until thread available
     setSending(true);
     try {
-      await api.post("/mission_control/message", { thread_id: selectedThreadId, text: content });
-      setChatInput("");
-      await loadMessages(selectedThreadId);
+      if (selectedThreadId) {
+        await api.post("/mission_control/message", { thread_id: selectedThreadId, text: content });
+        setChatInput("");
+        await loadMessages(selectedThreadId);
+      } else {
+        // Fallback: let backend default to General if no thread_id yet
+        await api.post("/mission_control/message", { text: content });
+        setChatInput("");
+        // Reload threads to get auto-created General and select it
+        await loadThreads();
+        // Try to load messages for the (likely) first thread
+        if (threads && threads[0]?.thread_id) {
+          setSelectedThreadId(threads[0].thread_id);
+          await loadMessages(threads[0].thread_id);
+        }
+      }
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error("SEND ERROR:", e?.message || e);
