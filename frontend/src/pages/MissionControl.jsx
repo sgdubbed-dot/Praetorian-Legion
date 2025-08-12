@@ -235,9 +235,27 @@ export default function MissionControl() {
         </div>
       </div>
 
-      {/* Secondary Column (kept empty per scope) */}
-      <div className="bg-white rounded shadow p-4 space-y-4">
-        <div className="text-sm text-neutral-600">Select a thread and start chatting. This panel will host Draft and Pins in a future step.</div>
+      {/* Secondary Column: Recent Threads + Run Controls */}
+      <div className="bg-white rounded shadow p-0 flex flex-col">
+        <div className="px-4 py-3 border-b flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Recent Threads</h3>
+          <button onClick={() => loadThreads()} className="text-xs px-2 py-1 bg-neutral-800 text-white rounded">Refresh</button>
+        </div>
+        <div className="overflow-y-auto" style={{maxHeight: 520}}>
+          {(threads || []).map((t) => (
+            <div key={t.thread_id} className={`p-3 border-b hover:bg-neutral-50 ${selectedThreadId===t.thread_id?"bg-blue-50":""}`}>
+              <div className="flex items-center justify-between">
+                <button onClick={() => setSelectedThreadId(t.thread_id)} className="text-left">
+                  <div className="text-sm font-medium truncate" title={t.title}>{t.title || "Untitled"}</div>
+                  <div className="text-[11px] text-neutral-500">{phoenixTime(t.updated_at)} • <StatusPill status={t.thread_status || (t.mission_id?"Running":"Unlinked")} /></div>
+                </button>
+                <div className="flex items-center gap-1">
+                  <RunControls thread={t} onActionDone={() => {loadThreads(); if(selectedThreadId===t.thread_id){loadMessages(t.thread_id);} }} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
