@@ -1,67 +1,84 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { api, phoenixTime } from "../api";
 
-const postureLabel = (p) => (p === "research_only" ? "Research Mode" : p);
-
 export default function MissionControl() {
-  const [praefectus, setPraefectus] = useState(null);
+  // Threads + selection
+  const [threads, setThreads] = useState([]);
+  const [selectedThreadId, setSelectedThreadId] = useState(null);
+  const [selectedThread, setSelectedThread] = useState(null);
+  const [messages, setMessages] = useState([]);
+
+  // Provider badge
+  const [modelId, setModelId] = useState("");
+
+  // Composer + sync
   const [chatInput, setChatInput] = useState("");
-  const [hotLeads, setHotLeads] = useState([]);
-  const [creating, setCreating] = useState(false);
-  const [missionForm, setMissionForm] = useState({ title: "", objective: "", posture: "help_only" });
-  const [mcReply, setMcReply] = useState(null);
-  const [guardrails, setGuardrails] = useState([]);
+  const [sending, setSending] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [toast, setToast] = useState("");
-  const [expandOpen, setExpandOpen] = useState(false);
 
-  const refresh = async () => {
+  // Load provider health (model id)
+  const loadProvider = async () => {
     try {
-      const agents = (await api.get("/agents")).data;
-      const pf = agents.find((a) => a.agent_name === "Praefectus") || null;
-      setPraefectus(pf);
-      const hls = (await api.get("/hotleads")).data.filter((h) => h.status === "pending_approval");
-      setHotLeads(hls);
-      const gs = (await api.get("/guardrails")).data;
-      setGuardrails(gs);
+      const res = await api.get("/providers/health");
+      setModelId(res.data?.praefectus_model_id || "");
     } catch (e) {
-      console.error("PAGE ERROR:", e?.name || e?.message || e);
+      // eslint-disable-next-line no-console
+      console.error("PROVIDER ERROR:", e?.message || e);
     }
   };
 
+  // Load threads
+  const loadThreads = async () => {
+    try {
+      const res = await api.get("/mission_control/threads");
+      const list = res.data || [];
+      setThreads(list);
+      // Auto-select first (backend auto-creates General if none existed)
+      if (!selectedThreadId && list.length > 0) {
+        setSelectedThreadId(list[0].thread_id);
+        setSelectedThread(list[0]);
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("THREADS ERROR:", e?.message || e);
+    }
+  };
+
+  // Load messages for a thread (ascending order expected from API)
+  const loadMessages = async (threadId) => {
+    if (!threadId) return;
+    try {
+      const res = await api.get(`/mission_control/thread/${threadId}?limit=100`);
+      const data = res.data || {};
+      setSelectedThread(data.thread || null);
+      setMessages(Array.isArray(data.messages) ? data.messages : []);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("MESSAGES ERROR:", e?.message || e);
+    }
+  };
+
+  // Initial load
   useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, 5000);
-    return () => clearInterval(id);
+    (async () => {
+      await Promise.all([loadProvider(), loadThreads()]);
+    })();
   }, []);
 
-  const postureConflict = useMemo(() => {
-    const hasResearchOnly = guardrails.some((g) => g.default_posture === "research_only" || (g.type === "posture" && g.value === "research_only"));
-    if (hasResearchOnly && missionForm.posture === "help_plus_soft_marketing") return "Guardrail conflict: Research-only in effect. No public engagement allowed.";
-    return null;
-  }, [guardrails, missionForm.posture]);
-
-  const messages = useMemo(() => praefectus?.activity_stream ?? [], [praefectus]);
-
-  const appendPraefectusActivity = async (entry) => {
-    try {
-      const existing = praefectus || { agent_name: "Praefectus", status_light: "green", activity_stream: [] };
-      const updated = {
-        ...existing,
-        last_activity: new Date().toISOString(),
-        activity_stream: [...(existing.activity_stream || []), entry],
-      };
-      await api.post("/agents/status", updated);
-      await refresh();
-    } catch (e) {
-      console.error("PAGE ERROR:", e?.name || e?.message || e);
+  // When selection changes, load its messages
+  useEffect(() => {
+    if (selectedThreadId) {
+      loadMessages(selectedThreadId);
     }
-  };
+  }, [selectedThreadId]);
 
+  // Sync Now
   const onSyncNow = async () => {
     setSyncing(true);
     try {
-      await refresh();
+      await Promise.all([loadProvider(), loadThreads()]);
+      if (selectedThreadId) await loadMessages(selectedThreadId);
       const t = phoenixTime(new Date().toISOString());
       setToast(`Synced at ${t}`);
       setTimeout(() => setToast(""), 2000);
@@ -70,18 +87,36 @@ export default function MissionControl() {
     }
   };
 
-  const sendMessage = async () => {
-    if (!chatInput.trim()) return;
-    const human = { who: "human", content: chatInput.trim(), timestamp: new Date().toISOString() };
-    setChatInput("");
-    await appendPraefectusActivity(human);
+  // Create new thread
+  const onNewThread = async () => {
     try {
-      const res = await api.post("/mission_control/message", { text: human.content });
-      setMcReply(res.data);
-      await appendPraefectusActivity({ who: "Praefectus", content: `Understanding: ${res.data.understanding}` , timestamp: new Date().toISOString() });
-      await appendPraefectusActivity({ who: "Praefectus", content: `Recommended Draft: ${res.data.recommended_mission_draft?.title}` , timestamp: new Date().toISOString() });
+      const title = window.prompt("Thread title", "New Thread");
+      const body = { title: title && title.trim() ? title.trim() : "New Thread" };
+      const res = await api.post("/mission_control/threads", body);
+      const newId = res.data?.thread_id;
+      await loadThreads();
+      if (newId) setSelectedThreadId(newId);
     } catch (e) {
-      console.error("PAGE ERROR:", e?.name || e?.message || e);
+      // eslint-disable-next-line no-console
+      console.error("CREATE THREAD ERROR:", e?.message || e);
+    }
+  };
+
+  // Send message
+  const sendMessage = async () => {
+    const content = (chatInput || "").trim();
+    if (!content) return;
+    if (!selectedThreadId) return; // wait until thread available
+    setSending(true);
+    try {
+      await api.post("/mission_control/message", { thread_id: selectedThreadId, text: content });
+      setChatInput("");
+      await loadMessages(selectedThreadId);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("SEND ERROR:", e?.message || e);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -92,150 +127,105 @@ export default function MissionControl() {
     }
   };
 
-  const approveDraft = async () => {
-    if (!mcReply) return;
-    try {
-      await api.post("/mission_control/message", { text: "approve", approve: true, draft: mcReply.recommended_mission_draft });
-      await refresh();
-    } catch (e) {
-      console.error("PAGE ERROR:", e?.name || e?.message || e);
-    }
-  };
-
-  const createMission = async () => {
-    setCreating(true);
-    try {
-      const res = await api.post("/missions", missionForm);
-      await appendPraefectusActivity({ who: "Praefectus", content: `Mission created: ${res.data.title}`, timestamp: new Date().toISOString() });
-      setMissionForm({ title: "", objective: "", posture: "help_only" });
-    } finally {
-      setCreating(false);
-    }
-  };
+  // Derived
+  const threadChips = useMemo(() => threads || [], [threads]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Main Chat Column */}
       <div className="lg:col-span-2 bg-white rounded shadow p-4">
+        {/* Header */}
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Mission Control — Praefectus</h2>
-          <button aria-label="Sync Now" onClick={onSyncNow} className="text-sm px-2 py-1 bg-neutral-800 text-white rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold">Mission Control — Praefectus</h2>
+            {modelId && (
+              <span className="text-xs px-2 py-1 rounded bg-neutral-100 border text-neutral-700">
+                Model: {modelId}
+              </span>
+            )}
+          </div>
+          <button
+            aria-label="Sync Now"
+            onClick={onSyncNow}
+            className="text-sm px-2 py-1 bg-neutral-800 text-white rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
+          >
             {syncing ? "Syncing..." : "Sync Now"}
           </button>
         </div>
-        {toast && <div className="mb-2 text-sm px-2 py-1 bg-green-100 text-green-800 rounded inline-block">{toast}</div>}
-        <div className="h-[420px] overflow-y-auto space-y-2 border rounded p-3 bg-neutral-50">
-          {messages.length === 0 && (
-            <div className="text-sm text-neutral-500">No activity yet. Say hello to Praefectus.</div>
-          )}
-          {messages.map((m, idx) => (
-            <div key={idx} className={`flex ${m.who === "human" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[80%] p-2 rounded ${m.who === "human" ? "bg-blue-600 text-white" : "bg-white border"}`}>
-                <div className="text-xs text-neutral-400">{phoenixTime(m.timestamp)} — {m.who}</div>
-                <div className="whitespace-pre-wrap text-sm">{m.content}</div>
-              </div>
-            </div>
+
+        {/* Thread switcher */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-sm text-neutral-600">Recent threads</div>
+          <button
+            onClick={onNewThread}
+            className="text-xs px-2 py-1 bg-blue-600 text-white rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600"
+          >
+            + New Thread
+          </button>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-2 border-b">
+          {threadChips.map((t) => (
+            <button
+              key={t.thread_id}
+              onClick={() => setSelectedThreadId(t.thread_id)}
+              className={`text-xs px-3 py-1 border rounded whitespace-nowrap ${
+                selectedThreadId === t.thread_id ? "bg-blue-600 text-white border-blue-600" : "bg-white hover:bg-neutral-100"
+              }`}
+              title={t.synopsis || t.title}
+            >
+              {t.title || "Untitled"}
+            </button>
           ))}
         </div>
-        <div className="mt-3 flex gap-2">
-          <textarea aria-label="Message to Praefectus" className="flex-1 border rounded px-3 py-2" rows={2} placeholder="Type a message to Praefectus... (Enter to send, Shift+Enter for newline)" value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={sendOnKey} />
-          <button aria-label="Send" onClick={sendMessage} className="px-4 py-2 bg-blue-600 text-white rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600">Send</button>
+
+        {toast && (
+          <div className="mb-2 text-sm px-2 py-1 bg-green-100 text-green-800 rounded inline-block">{toast}</div>
+        )}
+
+        {/* Messages */}
+        <div className="h-[420px] overflow-y-auto space-y-2 border rounded p-3 bg-neutral-50">
+          {!messages || messages.length === 0 ? (
+            <div className="text-sm text-neutral-500">No messages yet. Say hello to Praefectus.</div>
+          ) : (
+            messages.map((m) => (
+              <div key={m.id} className={`flex ${m.role === "human" ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[80%] p-2 rounded ${m.role === "human" ? "bg-blue-600 text-white" : "bg-white border"}`}>
+                  <div className="text-xs text-neutral-400">{phoenixTime(m.created_at)} — {m.role}</div>
+                  <div className="whitespace-pre-wrap text-sm">{m.text}</div>
+                  {m.role === "praefectus" && (
+                    <div className="mt-1 text-[11px] italic text-neutral-500">Praefectus replied.</div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
-        {mcReply && (
-          <div className="mt-4 border rounded p-3 bg-white">
-            <div className="font-semibold mb-2">Praefectus Reply</div>
-            <div className="text-sm mb-1"><span className="font-medium">Understanding:</span> {mcReply.understanding}</div>
-            <div className="text-sm mb-1"><span className="font-medium">Critique & Options:</span>
-              <ul className="list-disc pl-5">
-                {mcReply.critique_options.map((c, i) => <li key={i}>{c}</li>)}
-              </ul>
-            </div>
-            <div className="text-sm mb-1"><span className="font-medium">Recommended Draft:</span> <code>{mcReply.recommended_mission_draft?.title}</code> — posture {postureLabel(mcReply.recommended_mission_draft?.posture)}</div>
-            <div className="text-sm mb-3"><span className="font-medium">Open Questions:</span>
-              <ul className="list-disc pl-5">
-                {mcReply.open_questions.map((q, i) => <li key={i}>{q}</li>)}
-              </ul>
-            </div>
-            <div className="flex gap-2">
-              <button aria-label="Approve Draft" onClick={approveDraft} className="px-3 py-1 bg-green-600 text-white rounded text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600">Approve Draft</button>
-              <button aria-label="Expand Reply" onClick={() => setExpandOpen(true)} className="px-3 py-1 bg-neutral-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500">Expand</button>
-            </div>
-          </div>
-        )}
-
-        {expandOpen && mcReply && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-            <div className="bg-white rounded shadow p-4 w-full max-w-2xl">
-              <div className="text-lg font-semibold mb-2">Praefectus Reply</div>
-              <div className="space-y-3 text-sm">
-                <div>
-                  <div className="font-medium">Understanding</div>
-                  <div className="whitespace-pre-wrap bg-neutral-50 p-2 rounded border">{mcReply.understanding}</div>
-                  <button onClick={() => navigator.clipboard.writeText(mcReply.understanding)} className="mt-1 text-xs px-2 py-1 bg-neutral-800 text-white rounded">Copy</button>
-                </div>
-                <div>
-                  <div className="font-medium">Critique & Options</div>
-                  <div className="bg-neutral-50 p-2 rounded border">
-                    <ul className="list-disc pl-5">
-                      {mcReply.critique_options.map((c, i) => <li key={i}>{c}</li>)}
-                    </ul>
-                  </div>
-                  <button onClick={() => navigator.clipboard.writeText(mcReply.critique_options.join("\n"))} className="mt-1 text-xs px-2 py-1 bg-neutral-800 text-white rounded">Copy</button>
-                </div>
-                <div>
-                  <div className="font-medium">Recommended Draft</div>
-                  <pre className="bg-neutral-50 p-2 rounded border whitespace-pre-wrap">{JSON.stringify(mcReply.recommended_mission_draft, null, 2)}</pre>
-                  <button onClick={() => navigator.clipboard.writeText(JSON.stringify(mcReply.recommended_mission_draft, null, 2))} className="mt-1 text-xs px-2 py-1 bg-neutral-800 text-white rounded">Copy</button>
-                </div>
-                <div>
-                  <div className="font-medium">Open Questions</div>
-                  <ul className="list-disc pl-5 bg-neutral-50 p-2 rounded border">
-                    {mcReply.open_questions.map((q, i) => <li key={i}>{q}</li>)}
-                  </ul>
-                  <button onClick={() => navigator.clipboard.writeText(mcReply.open_questions.join("\n"))} className="mt-1 text-xs px-2 py-1 bg-neutral-800 text-white rounded">Copy</button>
-                </div>
-              </div>
-              <div className="mt-3 flex justify-end gap-2">
-                <button onClick={() => setExpandOpen(false)} className="px-3 py-1 bg-neutral-200 rounded">Close</button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Composer */}
+        <div className="mt-3 flex gap-2">
+          <textarea
+            aria-label="Message to Praefectus"
+            className="flex-1 border rounded px-3 py-2"
+            rows={2}
+            placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={sendOnKey}
+          />
+          <button
+            aria-label="Send"
+            onClick={sendMessage}
+            disabled={sending || !selectedThreadId}
+            className="px-4 py-2 bg-blue-600 text-white rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600 disabled:opacity-60"
+          >
+            {sending ? "Sending…" : "Send"}
+          </button>
+        </div>
       </div>
 
+      {/* Secondary Column (kept empty per scope) */}
       <div className="bg-white rounded shadow p-4 space-y-4">
-        <h3 className="font-semibold">Approvals</h3>
-        <div className="space-y-3">
-          {hotLeads.length === 0 && <div className="text-sm text-neutral-500">No Hot Leads awaiting approval.</div>}
-          {hotLeads.map((hl) => (
-            <div key={hl.id} className="border rounded p-2">
-              <div className="text-sm font-medium">Hot Lead {hl.id.slice(0, 8)}</div>
-              <div className="text-xs text-neutral-500">Prospect: {hl.prospect_id.slice(0, 8)}</div>
-              <div className="text-xs">Evidence: {hl.evidence?.[0]?.quote || "-"}</div>
-              <div className="mt-2 flex gap-2">
-                <button aria-label="Approve" onClick={() => api.post(`/hotleads/${hl.id}/status`, { status: "approved" }).then(refresh)} className="px-2 py-1 bg-green-600 text-white text-xs rounded">Approve</button>
-                <button aria-label="Defer" onClick={() => api.post(`/hotleads/${hl.id}/status`, { status: "deferred" }).then(refresh)} className="px-2 py-1 bg-yellow-600 text-white text-xs rounded">Defer</button>
-                <button aria-label="Reject" onClick={() => api.post(`/hotleads/${hl.id}/status`, { status: "removed" }).then(refresh)} className="px-2 py-1 bg-red-600 text-white text-xs rounded">Reject</button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div>
-          <h3 className="font-semibold mb-2">Draft Mission</h3>
-          {postureConflict && (<div className="mb-2 p-2 bg-yellow-100 text-yellow-800 rounded text-sm">{postureConflict}</div>)}
-          <div className="space-y-2">
-            <input aria-label="Mission Title" className="w-full border rounded px-2 py-1" placeholder="Title" value={missionForm.title} onChange={(e) => setMissionForm({ ...missionForm, title: e.target.value })} />
-            <textarea aria-label="Mission Objective" className="w-full border rounded px-2 py-1" rows={3} placeholder="Objective" value={missionForm.objective} onChange={(e) => setMissionForm({ ...missionForm, objective: e.target.value })} />
-            <select aria-label="Mission Posture" className="w-full border rounded px-2 py-1" value={missionForm.posture} onChange={(e) => setMissionForm({ ...missionForm, posture: e.target.value })}>
-              <option value="help_only">help_only</option>
-              <option value="help_plus_soft_marketing">help_plus_soft_marketing</option>
-              <option value="research_only">research_only</option>
-            </select>
-            <div className="text-xs text-neutral-600">Selected: {postureLabel(missionForm.posture)}</div>
-            <button disabled={creating} onClick={createMission} className="px-3 py-1 bg-neutral-800 text-white rounded text-sm">{creating ? "Creating..." : "Create Mission"}</button>
-          </div>
-        </div>
+        <div className="text-sm text-neutral-600">Select a thread and start chatting. This panel will host Draft and Pins in a future step.</div>
       </div>
     </div>
   );
