@@ -26,6 +26,7 @@ const NavBar = () => (
         ["Agents", "/agents"],
         ["Guardrails", "/guardrails"],
         ["Exports", "/exports"],
+        ["Findings", "/findings"],
       ].map(([label, path]) => (
         <NavLink
           key={path}
