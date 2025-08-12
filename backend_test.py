@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Praetorian Legion - Findings Endpoints Re-Testing
-Focus: Re-test findings after backend addition per review request
+Backend API Testing for Praetorian Legion - Mission Control Thread Linking & Findings Snapshot
+Focus: Execute specific 6-step flow to link latest thread to mission and create findings snapshot
 """
 
 import requests
