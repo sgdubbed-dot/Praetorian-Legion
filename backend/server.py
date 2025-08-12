@@ -44,6 +44,12 @@ def to_phoenix(ts: Optional[str]) -> Optional[str]:
     except Exception:
         return now_iso()
 
+def phoenix_time_line(ts: str) -> str:
+    try:
+        return to_phoenix(ts) or ts
+    except Exception:
+        return ts
+
 # ID helper
 # Flake8 E731: do not assign a lambda expression; define a function instead
 
