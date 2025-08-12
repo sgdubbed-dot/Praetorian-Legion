@@ -773,10 +773,49 @@ async def mission_control_post_message(payload: MCChatInput):
     # LLM call
     client = get_llm_client()
     model_id = select_praefectus_default_model()
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": txt},
-    ]
+    # Build context preamble from product_brief guardrail
+    product = await COLL_GUARDRAILS.find_one({"type": "product_brief"})
+    product_brief = ""
+    if product and isinstance(product.get("value"), dict):
+        v = product.get("value")
+        # Compose short bullet lines
+        def join_list(key):
+            arr = v.get(key) or []
+            return "; ".join(arr) if isinstance(arr, list) else str(arr)
+        product_brief = (
+            f"Product: {v.get('title','')} — {v.get('one_liner','')}\n"
+            f"Category: {v.get('category','')}\n"
+            f"Value props: {join_list('value_props')}\n"
+            f"Features: {join_list('key_features')}\n"
+            f"Differentiators: {join_list('differentiators')}\n"
+            f"Forbidden tone: {join_list('forbidden_tone')}\n"
+        ).strip()
+    thread_preamble = (
+        f"Goal: {th.get('goal','(unset)')}\n"
+        f"Stage: {th.get('stage','brainstorm')}\n"
+        f"Synopsis: {th.get('synopsis','')}\n"
+        f"Mission posture: {('research_only' if False else (await COLL_MISSIONS.find_one({'_id': th.get('mission_id')})).get('posture') if th.get('mission_id') else 'n/a')}\n"
+    )
+    stage_behavior = {
+        "brainstorm": "Generate several viable options. Ask 1-2 concise clarifiers. Avoid committing.",
+        "consolidate": "Compare shortlisted options, converge to one cohesive plan, and show trade-offs.",
+        "execute": "Report progress, next actions, and missing inputs. Prepare updates and findings.",
+    }
+    anti_drift = (
+        "Stay strictly aligned to this thread's goal. If user is ambiguous, ask one brief clarifier or reframe to the goal. "
+        "Do not change domains or metaphors that break the mission context."
+    )
+    system = "\n\n".join(filter(None, [SYSTEM_PROMPT, product_brief, thread_preamble, stage_behavior.get(th.get('stage','brainstorm'), ''), anti_drift]))
+
+    # Include last ~6 messages for context
+    recent_msgs = await COLL_MESSAGES.find({"thread_id": thread_id}).sort("created_at", -1).limit(6).to_list(6)
+    recent_msgs = list(reversed(recent_msgs))
+    messages = [{"role": "system", "content": system}] + [
+        {"role": ("user" if m.get("role") == "human" else "assistant"), "content": m.get("text","")}
+        for m in recent_msgs
+    ] + [{"role": "user", "content": txt}]
+
+    await log_event("context_preamble_used", "backend/mission_control", {"thread_id": thread_id, "model_id": model_id})
     try:
         resp = client.chat(model_id=model_id, messages=messages, temperature=0.3, max_tokens=800)
         assistant_text = resp.get("text", "")
