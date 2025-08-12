@@ -660,6 +660,18 @@ backend:
         - agent: "testing"
         - comment: "Phoenix timestamps verified across all endpoints. Health endpoint, events, and all API responses include proper Phoenix timezone format (-07:00) as required."
 
+  - task: "Mission Control thread linking and findings snapshot flow"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "MISSION CONTROL THREAD LINKING & FINDINGS SNAPSHOT FLOW COMPLETED SUCCESSFULLY: Executed specific 6-step flow as per review request. ✅ Step 1: GET /api/mission_control/threads found 8 threads, identified latest by updated_at (thread_id: e6dac881-ec42-4200-8b0d-cc7f34b6a2c7, title: 'Sanity Thread'). ✅ Step 2: GET /api/missions found 2 matching missions with 'Mission control sanity check' in title, selected most recent (mission_id: a4d6f7a7-c6fd-4d3b-a94b-a081b91ecbc2). ✅ Step 3: PATCH /api/mission_control/threads/{thread_id} successfully linked thread to mission with mission_id verification. ✅ Step 4: POST /api/mission_control/snapshot_findings created snapshot finding (finding_id: 799e6c6a-7249-4497-bec9-d1215b167c73, title: 'Findings - Sanity Thread 2025-08-12T11:32:00.453793-07:00'). ✅ Step 5: GET /api/findings?mission_id verified new finding appears in mission findings list (2 total findings). Phoenix timestamps confirmed on all 5/5 endpoints. Total execution time: 0.22s. All requested data captured: thread_id, thread_title, mission_id, mission_title, finding_id, finding_title, list_count, Phoenix timestamp presence confirmed."
+
 metadata:
   created_by: "testing_agent"
   version: "1.6"
