@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Praetorian Legion - Phase 1 Mission Control Flow
-Focus: Exact work order Option 1 flow verification as per review request
+Backend API Testing for Praetorian Legion - User-Reported Issues Investigation
+Focus: Findings endpoints, Mission Control sanity checks, and Phoenix timestamps
 """
 
 import requests
 import json
 import time
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import os
 from dotenv import load_dotenv
 
