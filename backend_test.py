@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Praetorian Legion - User-Reported Issues Investigation
-Focus: Findings endpoints, Mission Control sanity checks, and Phoenix timestamps
+Backend API Testing for Praetorian Legion - Findings Endpoints Re-Testing
+Focus: Re-test findings after backend addition per review request
 """
 
 import requests
