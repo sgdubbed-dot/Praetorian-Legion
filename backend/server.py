@@ -676,6 +676,26 @@ SYSTEM_PROMPT = (
     "No JSON unless explicitly requested."
 )
 
+@api.patch("/mission_control/threads/{thread_id}", tags=["mission_control"])
+async def update_thread(thread_id: str, payload: ThreadUpdate):
+    th = await COLL_THREADS.find_one({"_id": thread_id})
+    if not th:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    data = payload.model_dump(exclude_unset=True)
+    updates: Dict[str, Any] = {}
+    if "stage" in data and data["stage"] and data["stage"] != th.get("stage", "brainstorm"):
+        history = th.get("stage_history", [])
+        history.append({"stage": data["stage"], "timestamp": now_iso()})
+        updates["stage_history"] = history
+    for k, v in data.items():
+        if k != "stage_history":
+            updates[k] = v
+    updates["updated_at"] = now_iso()
+    await COLL_THREADS.update_one({"_id": thread_id}, {"$set": updates})
+    out = await COLL_THREADS.find_one({"_id": thread_id})
+    out.pop("_id", None)
+    return out
+
 @api.post("/mission_control/threads", tags=["mission_control"])
 async def create_thread(payload: ThreadCreate):
     t = Thread(title=payload.title, mission_id=payload.mission_id)
