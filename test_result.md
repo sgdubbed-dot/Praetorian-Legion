@@ -665,9 +665,11 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Feature 3 backend regression testing"
-    - "Findings endpoints implementation pending"
-  stuck_tasks: []
+    - "Findings endpoints investigation"
+    - "Missions list verification"
+    - "Mission Control threads verification"
+  stuck_tasks:
+    - "Findings endpoints investigation"
   test_all: false
   test_priority: "high_first"
 
