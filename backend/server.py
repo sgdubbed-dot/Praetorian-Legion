@@ -1027,6 +1027,132 @@ async def download_export(export_id: str):
     headers = {"Content-Disposition": f"attachment; filename=export_{export_id}.csv"}
     return Response(content=csv_data, media_type="text/csv", headers=headers)
 
+# Findings
+class Finding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(default_factory=new_id)
+    mission_id: str
+    thread_id: str
+    title: str
+    body_markdown: str = ""
+    highlights: List[str] = Field(default_factory=list)
+    metrics: Dict[str, Any] = Field(default_factory=dict)
+    attachments: List[Dict[str, Any]] = Field(default_factory=list)
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+class FindingCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mission_id: str
+    thread_id: str
+    title: str
+    body_markdown: Optional[str] = ""
+    highlights: Optional[List[str]] = None
+    metrics: Optional[Dict[str, Any]] = None
+    attachments: Optional[List[Dict[str, Any]]] = None
+
+class FindingPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: Optional[str] = None
+    body_markdown: Optional[str] = None
+    highlights: Optional[List[str]] = None
+    metrics: Optional[Dict[str, Any]] = None
+    attachments: Optional[List[Dict[str, Any]]] = None
+
+COLL_FINDINGS = db["Findings"]
+
+@api.post("/findings", tags=["findings"])
+async def create_finding(payload: FindingCreate):
+    base = Finding(
+        mission_id=payload.mission_id,
+        thread_id=payload.thread_id,
+        title=payload.title,
+        body_markdown=payload.body_markdown or "",
+        highlights=payload.highlights or [],
+        metrics=payload.metrics or {},
+        attachments=payload.attachments or [],
+    )
+    doc = await insert_with_id(COLL_FINDINGS, base.model_dump())
+    await log_event("findings_created", "backend/findings", {"finding_id": doc["id"], "mission_id": doc["mission_id"], "thread_id": doc["thread_id"]})
+    return doc
+
+@api.get("/findings", tags=["findings"])
+async def list_findings(mission_id: Optional[str] = None, limit: int = 200):
+    q: Dict[str, Any] = {}
+    if mission_id:
+        q["mission_id"] = mission_id
+    cursor = COLL_FINDINGS.find(q).sort("updated_at", -1).limit(limit)
+    docs = await cursor.to_list(limit)
+    return [{k: v for k, v in d.items() if k != "_id"} for d in docs]
+
+@api.get("/findings/{finding_id}", tags=["findings"])
+async def get_finding(finding_id: str):
+    doc = await get_by_id(COLL_FINDINGS, finding_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    return doc
+
+@api.patch("/findings/{finding_id}", tags=["findings"])
+async def patch_finding(finding_id: str, payload: FindingPatch):
+    data = payload.model_dump(exclude_unset=True)
+    updated = await update_by_id(COLL_FINDINGS, finding_id, data)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    doc = await get_by_id(COLL_FINDINGS, finding_id)
+    await log_event("findings_updated", "backend/findings", {"finding_id": finding_id})
+    return doc
+
+@api.post("/findings/{finding_id}/export", tags=["findings"])
+async def export_finding(finding_id: str, format: str = "md"):
+    d = await COLL_FINDINGS.find_one({"_id": finding_id})
+    if not d:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    d.pop("_id", None)
+    filename = f"finding_{finding_id}.{ 'md' if format=='md' else 'csv' }"
+    if format == "md":
+        content = f"# {d.get('title','')}\n\n" + (d.get("body_markdown", "") or "")
+        media = "text/markdown"
+    else:
+        out = io.StringIO()
+        writer = csv.writer(out)
+        writer.writerow(["id","mission_id","thread_id","title","updated_at"])
+        writer.writerow([d.get("id"), d.get("mission_id"), d.get("thread_id"), d.get("title"), d.get("updated_at")])
+        content = out.getvalue()
+        media = "text/csv"
+    await log_event("findings_exported", "backend/findings", {"finding_id": finding_id, "format": format})
+    headers = {"Content-Disposition": f"attachment; filename={filename}"}
+    return Response(content=content, media_type=media, headers=headers)
+
+class SnapshotFindingInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    thread_id: str
+
+@api.post("/mission_control/snapshot_findings", tags=["mission_control"])
+async def snapshot_findings(payload: SnapshotFindingInput):
+    th = await COLL_THREADS.find_one({"_id": payload.thread_id})
+    if not th:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    if not th.get("mission_id"):
+        raise HTTPException(status_code=400, detail="Thread not linked to a mission")
+    msgs = await COLL_MESSAGES.find({"thread_id": payload.thread_id}).sort("created_at", -1).limit(6).to_list(6)
+    msgs = list(reversed(msgs))
+    lines = [
+        f"Goal: {th.get('goal','')}",
+        f"Stage: {th.get('stage','brainstorm')}",
+        f"Synopsis: {th.get('synopsis','')}",
+        "",
+        "Last 6 turns:",
+    ]
+    for m in msgs:
+        ts = to_phoenix(m.get("created_at")) or m.get("created_at")
+        lines.append(f"- {ts} {m.get('role')}: {m.get('text')}")
+    body = "\n".join(lines)
+    title = f"Findings - {th.get('title','Thread')} {now_iso()}"
+    fdoc = Finding(mission_id=th.get("mission_id"), thread_id=payload.thread_id, title=title, body_markdown=body)
+    doc = await insert_with_id(COLL_FINDINGS, fdoc.model_dump())
+    await log_event("findings_created", "backend/findings", {"finding_id": doc['id'], "mission_id": doc['mission_id'], "thread_id": doc['thread_id']})
+    return doc
+
 # Agents
 @api.post("/agents/status", response_model=AgentStatus, tags=["agents"])
 async def upsert_agent_status(payload: AgentStatus):
