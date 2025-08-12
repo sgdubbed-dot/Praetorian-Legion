@@ -671,8 +671,7 @@ test_plan:
     - "Findings endpoints investigation"
     - "Missions list verification"
     - "Mission Control threads verification"
-  stuck_tasks:
-    - "Findings endpoints investigation"
+  stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
