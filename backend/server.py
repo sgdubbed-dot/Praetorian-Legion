@@ -822,13 +822,30 @@ async def mission_control_post_message(payload: MCChatInput):
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {e}")
     # Append assistant
-    assistant = Message(thread_id=payload.thread_id, mission_id=th.get("mission_id"), role="praefectus", text=assistant_text)
+    # Drift guard keywords
+    drift_terms = ["UAV","enemy","kinetic","overwatch","SIGINT","munition","airstrike","platoon","terrain"]
+    lower = assistant_text.lower()
+    offending = [k for k in drift_terms if k.lower() in lower]
+    reframed = False
+    if offending:
+        await log_event("assistant_redraft_due_to_drift", "backend/mission_control", {"thread_id": thread_id, "offending_terms": offending})
+        # Redraft
+        redraft_prompt = "You drifted off the mission. Rewrite strictly aligned to the thread goal and current stage."
+        try:
+            r2 = client.chat(model_id=model_id, messages=[{"role": "system", "content": system}, {"role": "user", "content": redraft_prompt}], temperature=0.2, max_tokens=800)
+            assistant_text = r2.get("text", assistant_text)
+            reframed = True
+        except Exception:
+            pass
+
+    # Append assistant
+    assistant = Message(thread_id=thread_id, mission_id=th.get("mission_id"), role="praefectus", text=assistant_text, metadata={"reframed": reframed})
     adoc = assistant.model_dump(); adoc["_id"] = assistant.id
     await COLL_MESSAGES.insert_one(adoc)
     # Update thread counters
-    await COLL_THREADS.update_one({"_id": payload.thread_id}, {"$set": {"updated_at": now_iso()}, "$inc": {"message_count": 2}})
-    await log_event("praefectus_message_appended", "backend/mission_control", {"thread_id": payload.thread_id, "model_id": model_id})
-    return {"assistant": {"text": assistant_text, "created_at": assistant.created_at}}
+    await COLL_THREADS.update_one({"_id": thread_id}, {"$set": {"updated_at": now_iso()}, "$inc": {"message_count": 2}})
+    await log_event("praefectus_message_appended", "backend/mission_control", {"thread_id": thread_id, "model_id": model_id, "reframed": reframed})
+    return {"assistant": {"text": assistant_text, "created_at": assistant.created_at, "reframed": reframed}}
 
 class SummarizeInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
