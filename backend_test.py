@@ -17,7 +17,7 @@ load_dotenv('/app/frontend/.env')
 BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://3afd5048-b1fe-4fd7-b71e-338e9cf21c47.preview.emergentagent.com')
 API_BASE = f"{BACKEND_URL}/api"
 
-class UserIssuesTester:
+class FindingsRetester:
     def __init__(self):
         self.results = []
         self.session = requests.Session()
@@ -62,46 +62,58 @@ class UserIssuesTester:
             duration = time.time() - start_time
             return False, str(e), duration
 
-    def test_findings_endpoints(self):
-        """Test findings endpoints as per user report - create mission, thread, link, snapshot, and verify"""
-        print("\n=== FINDINGS ENDPOINTS INVESTIGATION ===")
+    def verify_phoenix_timestamps(self, data: Any, context: str = "") -> bool:
+        """Verify Phoenix timezone timestamps are present"""
+        if isinstance(data, dict):
+            for key, value in data.items():
+                if key in ['created_at', 'updated_at', 'timestamp', 'last_activity', 'next_retry_at'] and value:
+                    if '-07:00' in str(value):
+                        return True
+            # Check nested objects
+            for value in data.values():
+                if self.verify_phoenix_timestamps(value, context):
+                    return True
+        elif isinstance(data, list):
+            for item in data:
+                if self.verify_phoenix_timestamps(item, context):
+                    return True
+        return False
+
+    def test_findings_complete_flow(self):
+        """Test complete findings flow as per review request"""
+        print("\n=== FINDINGS ENDPOINTS RE-TESTING (COMPLETE FLOW) ===")
         
-        # Step 1: GET /api/findings (should return 200 with array)
-        print("\n--- Step 1: GET /api/findings (initial check) ---")
+        # Step 1: GET /api/findings (should 200, array)
+        print("\n--- Step 1: GET /api/findings (should 200, array) ---")
         success, response, duration = self.make_request('GET', '/findings')
-        if success:
+        if success and response.status_code == 200:
             try:
-                if response.status_code == 200:
-                    data = response.json()
-                    self.payloads['findings_initial'] = data
-                    if isinstance(data, list):
-                        self.log_result('findings_initial_check', True, 
-                                      f'✅ GET /api/findings returned 200 with array ({len(data)} items)', 
-                                      {'count': len(data), 'sample': data[:2] if data else []}, duration)
-                    else:
-                        self.log_result('findings_initial_check', False, 
-                                      f'❌ GET /api/findings returned non-array: {type(data)}', 
-                                      data, duration)
-                elif response.status_code == 404:
-                    self.log_result('findings_initial_check', False, 
-                                  '❌ GET /api/findings returned 404 - endpoint not implemented', 
-                                  {'status_code': 404, 'text': response.text}, duration)
+                findings_data = response.json()
+                self.payloads['step1_findings_initial'] = findings_data
+                if isinstance(findings_data, list):
+                    phoenix_present = self.verify_phoenix_timestamps(findings_data, "initial findings")
+                    self.log_result('step1_get_findings', True, 
+                                  f'✅ GET /api/findings returned 200 with array ({len(findings_data)} items), Phoenix timestamps: {phoenix_present}', 
+                                  {'count': len(findings_data), 'phoenix_timestamps': phoenix_present}, duration)
                 else:
-                    self.log_result('findings_initial_check', False, 
-                                  f'❌ GET /api/findings returned {response.status_code}', 
-                                  {'status_code': response.status_code, 'text': response.text}, duration)
+                    self.log_result('step1_get_findings', False, 
+                                  f'❌ GET /api/findings returned non-array: {type(findings_data)}', 
+                                  findings_data, duration)
+                    return
             except Exception as e:
-                self.log_result('findings_initial_check', False, f'❌ JSON parse error: {e}', None, duration)
+                self.log_result('step1_get_findings', False, f'❌ JSON parse error: {e}', None, duration)
+                return
         else:
-            self.log_result('findings_initial_check', False, f'❌ Request failed: {response}', None, duration)
+            self.log_result('step1_get_findings', False, 
+                          f'❌ GET /api/findings failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+            return
         
-        # If findings endpoint doesn't exist, create test data and try the full flow
-        print("\n--- Creating test mission for findings flow ---")
-        
-        # Step 2: Create a test mission
+        # Step 2: Create mission directly: POST /api/missions
+        print("\n--- Step 2: Create mission directly ---")
         mission_data = {
             "title": "Mission control sanity check",
-            "objective": "Test findings endpoints and mission control integration",
+            "objective": "Sanity objective",
             "posture": "help_only",
             "state": "scanning"
         }
@@ -111,286 +123,208 @@ class UserIssuesTester:
                 mission = response.json()
                 mission_id = mission.get('id')
                 self.created_resources['mission_id'] = mission_id
-                self.payloads['test_mission'] = mission
-                self.log_result('create_test_mission', True, 
-                              f'✅ Test mission created: {mission_id}', 
-                              {'mission_id': mission_id, 'title': mission.get('title')}, duration)
+                self.payloads['step2_mission'] = mission
+                phoenix_present = self.verify_phoenix_timestamps(mission, "mission")
+                self.log_result('step2_create_mission', True, 
+                              f'✅ Mission created: {mission_id}, Phoenix timestamps: {phoenix_present}', 
+                              {'mission_id': mission_id, 'title': mission.get('title'), 'phoenix_timestamps': phoenix_present}, duration)
             except Exception as e:
-                self.log_result('create_test_mission', False, f'❌ JSON parse error: {e}', None, duration)
+                self.log_result('step2_create_mission', False, f'❌ JSON parse error: {e}', None, duration)
                 return
         else:
-            self.log_result('create_test_mission', False, 
+            self.log_result('step2_create_mission', False, 
                           f'❌ Mission creation failed: {response.status_code if hasattr(response, "status_code") else response}', 
                           None, duration)
             return
         
-        # Step 3: Create a thread
-        thread_data = {"title": "Findings Test Thread"}
+        # Step 3: Create a thread: POST /api/mission_control/threads
+        print("\n--- Step 3: Create a thread ---")
+        thread_data = {"title": "Sanity Thread"}
         success, response, duration = self.make_request('POST', '/mission_control/threads', thread_data)
         if success and response.status_code == 200:
             try:
                 thread_resp = response.json()
                 thread_id = thread_resp.get('thread_id')
                 self.created_resources['thread_id'] = thread_id
-                self.payloads['test_thread'] = thread_resp
-                self.log_result('create_test_thread', True, 
-                              f'✅ Test thread created: {thread_id}', 
+                self.payloads['step3_thread'] = thread_resp
+                self.log_result('step3_create_thread', True, 
+                              f'✅ Thread created: {thread_id}', 
                               {'thread_id': thread_id}, duration)
             except Exception as e:
-                self.log_result('create_test_thread', False, f'❌ JSON parse error: {e}', None, duration)
+                self.log_result('step3_create_thread', False, f'❌ JSON parse error: {e}', None, duration)
                 return
         else:
-            self.log_result('create_test_thread', False, 
+            self.log_result('step3_create_thread', False, 
                           f'❌ Thread creation failed: {response.status_code if hasattr(response, "status_code") else response}', 
                           None, duration)
             return
         
-        # Step 4: Link thread to mission (PATCH /api/mission_control/threads/{id})
+        # Step 4: Link thread to mission: PATCH /api/mission_control/threads/{thread_id}
+        print("\n--- Step 4: Link thread to mission ---")
         link_data = {"mission_id": mission_id}
         success, response, duration = self.make_request('PATCH', f'/mission_control/threads/{thread_id}', link_data)
         if success and response.status_code == 200:
             try:
                 linked_thread = response.json()
-                self.payloads['linked_thread'] = linked_thread
+                self.payloads['step4_linked_thread'] = linked_thread
+                phoenix_present = self.verify_phoenix_timestamps(linked_thread, "linked thread")
                 if linked_thread.get('mission_id') == mission_id:
-                    self.log_result('link_thread_to_mission', True, 
-                                  f'✅ Thread linked to mission successfully', 
-                                  {'thread_id': thread_id, 'mission_id': mission_id}, duration)
+                    self.log_result('step4_link_thread', True, 
+                                  f'✅ Thread linked to mission successfully, Phoenix timestamps: {phoenix_present}', 
+                                  {'thread_id': thread_id, 'mission_id': mission_id, 'phoenix_timestamps': phoenix_present}, duration)
                 else:
-                    self.log_result('link_thread_to_mission', False, 
+                    self.log_result('step4_link_thread', False, 
                                   f'❌ Thread linking failed - mission_id mismatch', 
                                   linked_thread, duration)
+                    return
             except Exception as e:
-                self.log_result('link_thread_to_mission', False, f'❌ JSON parse error: {e}', None, duration)
+                self.log_result('step4_link_thread', False, f'❌ JSON parse error: {e}', None, duration)
+                return
         else:
-            self.log_result('link_thread_to_mission', False, 
+            self.log_result('step4_link_thread', False, 
                           f'❌ Thread linking failed: {response.status_code if hasattr(response, "status_code") else response}', 
                           None, duration)
+            return
         
-        # Step 5: POST /api/mission_control/snapshot_findings
-        print("\n--- Step 5: POST /api/mission_control/snapshot_findings ---")
-        success, response, duration = self.make_request('POST', '/mission_control/snapshot_findings')
-        if success:
-            if response.status_code == 200:
+        # Step 5: Send two messages to this thread: POST /api/mission_control/message
+        print("\n--- Step 5: Send two messages to thread ---")
+        messages = [
+            {"thread_id": thread_id, "text": "First test message for findings snapshot"},
+            {"thread_id": thread_id, "text": "Second test message to create conversation history"}
+        ]
+        
+        for i, msg_data in enumerate(messages, 1):
+            success, response, duration = self.make_request('POST', '/mission_control/message', msg_data)
+            if success and response.status_code == 200:
                 try:
-                    snapshot_data = response.json()
-                    self.payloads['snapshot_findings'] = snapshot_data
-                    self.log_result('snapshot_findings', True, 
-                                  '✅ Snapshot findings endpoint working', 
-                                  snapshot_data, duration)
+                    msg_resp = response.json()
+                    self.payloads[f'step5_message_{i}'] = msg_resp
+                    phoenix_present = self.verify_phoenix_timestamps(msg_resp, f"message {i}")
+                    self.log_result(f'step5_send_message_{i}', True, 
+                                  f'✅ Message {i} sent successfully, Phoenix timestamps: {phoenix_present}', 
+                                  {'message_num': i, 'phoenix_timestamps': phoenix_present}, duration)
                 except Exception as e:
-                    self.log_result('snapshot_findings', False, f'❌ JSON parse error: {e}', None, duration)
-            elif response.status_code == 404:
-                self.log_result('snapshot_findings', False, 
-                              '❌ POST /api/mission_control/snapshot_findings returned 404 - endpoint not implemented', 
-                              {'status_code': 404, 'text': response.text}, duration)
+                    self.log_result(f'step5_send_message_{i}', False, f'❌ JSON parse error: {e}', None, duration)
             else:
-                self.log_result('snapshot_findings', False, 
-                              f'❌ POST /api/mission_control/snapshot_findings returned {response.status_code}', 
-                              {'status_code': response.status_code, 'text': response.text}, duration)
-        else:
-            self.log_result('snapshot_findings', False, f'❌ Request failed: {response}', None, duration)
+                self.log_result(f'step5_send_message_{i}', False, 
+                              f'❌ Message {i} sending failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                              None, duration)
         
-        # Step 6: GET /api/findings?mission_id=...
-        print(f"\n--- Step 6: GET /api/findings?mission_id={mission_id} ---")
+        # Step 6: Snapshot findings: POST /api/mission_control/snapshot_findings
+        print("\n--- Step 6: Snapshot findings ---")
+        snapshot_data = {"thread_id": thread_id}
+        success, response, duration = self.make_request('POST', '/mission_control/snapshot_findings', snapshot_data)
+        if success and response.status_code == 200:
+            try:
+                finding_created = response.json()
+                finding_id = finding_created.get('id')
+                self.created_resources['finding_id'] = finding_id
+                self.payloads['step6_snapshot'] = finding_created
+                phoenix_present = self.verify_phoenix_timestamps(finding_created, "snapshot finding")
+                self.log_result('step6_snapshot_findings', True, 
+                              f'✅ Findings snapshot created: {finding_id}, Phoenix timestamps: {phoenix_present}', 
+                              {'finding_id': finding_id, 'phoenix_timestamps': phoenix_present}, duration)
+            except Exception as e:
+                self.log_result('step6_snapshot_findings', False, f'❌ JSON parse error: {e}', None, duration)
+                return
+        else:
+            self.log_result('step6_snapshot_findings', False, 
+                          f'❌ Snapshot findings failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+            return
+        
+        # Step 7: GET /api/findings?mission_id=<mission_id> (should contain 1)
+        print(f"\n--- Step 7: GET /api/findings?mission_id={mission_id} (should contain 1) ---")
         success, response, duration = self.make_request('GET', '/findings', params={'mission_id': mission_id})
-        if success:
-            if response.status_code == 200:
-                try:
-                    findings_data = response.json()
-                    self.payloads['findings_by_mission'] = findings_data
-                    if isinstance(findings_data, list):
-                        self.log_result('findings_by_mission', True, 
-                                      f'✅ GET /api/findings?mission_id returned {len(findings_data)} findings', 
-                                      {'count': len(findings_data), 'sample': findings_data[:2] if findings_data else []}, duration)
-                        
-                        # If we have findings, test individual finding and export
-                        if findings_data:
-                            finding_id = findings_data[0].get('id')
-                            if finding_id:
-                                self.test_individual_finding(finding_id)
+        if success and response.status_code == 200:
+            try:
+                mission_findings = response.json()
+                self.payloads['step7_mission_findings'] = mission_findings
+                phoenix_present = self.verify_phoenix_timestamps(mission_findings, "mission findings")
+                if isinstance(mission_findings, list):
+                    if len(mission_findings) >= 1:
+                        self.log_result('step7_get_mission_findings', True, 
+                                      f'✅ GET /api/findings?mission_id returned {len(mission_findings)} findings (expected ≥1), Phoenix timestamps: {phoenix_present}', 
+                                      {'count': len(mission_findings), 'phoenix_timestamps': phoenix_present}, duration)
+                        # Use the finding we just created for next steps
+                        if finding_id:
+                            test_finding_id = finding_id
+                        else:
+                            test_finding_id = mission_findings[0].get('id')
                     else:
-                        self.log_result('findings_by_mission', False, 
-                                      f'❌ GET /api/findings?mission_id returned non-array: {type(findings_data)}', 
-                                      findings_data, duration)
-                except Exception as e:
-                    self.log_result('findings_by_mission', False, f'❌ JSON parse error: {e}', None, duration)
-            elif response.status_code == 404:
-                self.log_result('findings_by_mission', False, 
-                              '❌ GET /api/findings?mission_id returned 404 - endpoint not implemented', 
-                              {'status_code': 404, 'text': response.text}, duration)
-            else:
-                self.log_result('findings_by_mission', False, 
-                              f'❌ GET /api/findings?mission_id returned {response.status_code}', 
-                              {'status_code': response.status_code, 'text': response.text}, duration)
-        else:
-            self.log_result('findings_by_mission', False, f'❌ Request failed: {response}', None, duration)
-
-    def test_individual_finding(self, finding_id: str):
-        """Test individual finding endpoints"""
-        print(f"\n--- Testing individual finding: {finding_id} ---")
-        
-        # GET /api/findings/{id}
-        success, response, duration = self.make_request('GET', f'/findings/{finding_id}')
-        if success and response.status_code == 200:
-            try:
-                finding_data = response.json()
-                self.payloads['individual_finding'] = finding_data
-                self.log_result('get_individual_finding', True, 
-                              f'✅ GET /api/findings/{finding_id} returned finding data', 
-                              {'finding_id': finding_id, 'keys': list(finding_data.keys()) if isinstance(finding_data, dict) else None}, duration)
-            except Exception as e:
-                self.log_result('get_individual_finding', False, f'❌ JSON parse error: {e}', None, duration)
-        else:
-            self.log_result('get_individual_finding', False, 
-                          f'❌ GET /api/findings/{finding_id} failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-        
-        # POST /api/findings/{id}/export?format=md
-        success, response, duration = self.make_request('POST', f'/findings/{finding_id}/export', params={'format': 'md'})
-        if success and response.status_code == 200:
-            try:
-                export_data = response.text if hasattr(response, 'text') else str(response)
-                self.payloads['finding_export'] = export_data[:500]  # Truncate for storage
-                self.log_result('export_finding_md', True, 
-                              f'✅ POST /api/findings/{finding_id}/export?format=md returned export data ({len(export_data)} chars)', 
-                              {'export_length': len(export_data), 'preview': export_data[:200]}, duration)
-            except Exception as e:
-                self.log_result('export_finding_md', False, f'❌ Export processing error: {e}', None, duration)
-        else:
-            self.log_result('export_finding_md', False, 
-                          f'❌ POST /api/findings/{finding_id}/export?format=md failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-
-    def test_missions_list(self):
-        """Test missions list and look for 'Mission control sanity check' mission"""
-        print("\n=== MISSIONS LIST INVESTIGATION ===")
-        
-        success, response, duration = self.make_request('GET', '/missions')
-        if success and response.status_code == 200:
-            try:
-                missions = response.json()
-                self.payloads['missions_list'] = missions
-                
-                if isinstance(missions, list):
-                    # Look for mission titled like "Mission control sanity check"
-                    sanity_missions = [m for m in missions if 'sanity' in m.get('title', '').lower() or 'mission control' in m.get('title', '').lower()]
-                    
-                    self.log_result('missions_list_check', True, 
-                                  f'✅ GET /api/missions returned {len(missions)} missions, {len(sanity_missions)} sanity/mission control missions found', 
-                                  {'total_missions': len(missions), 'sanity_missions': len(sanity_missions), 'sanity_titles': [m.get('title') for m in sanity_missions]}, duration)
-                    
-                    # Check for Phoenix timestamps in missions
-                    phoenix_count = sum(1 for m in missions if '-07:00' in str(m.get('created_at', '')) or '-07:00' in str(m.get('updated_at', '')))
-                    self.log_result('missions_phoenix_timestamps', True, 
-                                  f'✅ {phoenix_count}/{len(missions)} missions have Phoenix timestamps', 
-                                  {'phoenix_count': phoenix_count, 'total': len(missions)}, 0)
+                        self.log_result('step7_get_mission_findings', False, 
+                                      f'❌ GET /api/findings?mission_id returned {len(mission_findings)} findings (expected ≥1)', 
+                                      {'count': len(mission_findings)}, duration)
+                        return
                 else:
-                    self.log_result('missions_list_check', False, 
-                                  f'❌ GET /api/missions returned non-array: {type(missions)}', 
-                                  missions, duration)
+                    self.log_result('step7_get_mission_findings', False, 
+                                  f'❌ GET /api/findings?mission_id returned non-array: {type(mission_findings)}', 
+                                  mission_findings, duration)
+                    return
             except Exception as e:
-                self.log_result('missions_list_check', False, f'❌ JSON parse error: {e}', None, duration)
+                self.log_result('step7_get_mission_findings', False, f'❌ JSON parse error: {e}', None, duration)
+                return
         else:
-            self.log_result('missions_list_check', False, 
-                          f'❌ GET /api/missions failed: {response.status_code if hasattr(response, "status_code") else response}', 
+            self.log_result('step7_get_mission_findings', False, 
+                          f'❌ GET /api/findings?mission_id failed: {response.status_code if hasattr(response, "status_code") else response}', 
                           None, duration)
-
-    def test_mission_control_threads(self):
-        """Test Mission Control threads and verify sanity thread exists"""
-        print("\n=== MISSION CONTROL THREADS INVESTIGATION ===")
+            return
         
-        # GET /api/mission_control/threads
-        success, response, duration = self.make_request('GET', '/mission_control/threads')
+        # Step 8: GET /api/findings/{id}
+        print(f"\n--- Step 8: GET /api/findings/{test_finding_id} ---")
+        success, response, duration = self.make_request('GET', f'/findings/{test_finding_id}')
         if success and response.status_code == 200:
             try:
-                threads = response.json()
-                self.payloads['threads_list'] = threads
-                
-                if isinstance(threads, list):
-                    # Look for threads with sanity or mission control in title
-                    sanity_threads = [t for t in threads if 'sanity' in t.get('title', '').lower() or 'mission control' in t.get('title', '').lower()]
-                    
-                    self.log_result('threads_list_check', True, 
-                                  f'✅ GET /api/mission_control/threads returned {len(threads)} threads, {len(sanity_threads)} sanity/mission control threads found', 
-                                  {'total_threads': len(threads), 'sanity_threads': len(sanity_threads), 'sanity_titles': [t.get('title') for t in sanity_threads]}, duration)
-                    
-                    # Get the latest thread and check its messages
-                    if threads:
-                        latest_thread = max(threads, key=lambda t: t.get('updated_at', ''))
-                        thread_id = latest_thread.get('thread_id')
-                        self.test_thread_messages(thread_id, latest_thread.get('title', 'Unknown'))
-                    
-                    # Check for Phoenix timestamps in threads
-                    phoenix_count = sum(1 for t in threads if '-07:00' in str(t.get('created_at', '')) or '-07:00' in str(t.get('updated_at', '')))
-                    self.log_result('threads_phoenix_timestamps', True, 
-                                  f'✅ {phoenix_count}/{len(threads)} threads have Phoenix timestamps', 
-                                  {'phoenix_count': phoenix_count, 'total': len(threads)}, 0)
-                else:
-                    self.log_result('threads_list_check', False, 
-                                  f'❌ GET /api/mission_control/threads returned non-array: {type(threads)}', 
-                                  threads, duration)
+                individual_finding = response.json()
+                self.payloads['step8_individual_finding'] = individual_finding
+                phoenix_present = self.verify_phoenix_timestamps(individual_finding, "individual finding")
+                self.log_result('step8_get_individual_finding', True, 
+                              f'✅ GET /api/findings/{test_finding_id} returned finding data, Phoenix timestamps: {phoenix_present}', 
+                              {'finding_id': test_finding_id, 'phoenix_timestamps': phoenix_present, 'keys': list(individual_finding.keys()) if isinstance(individual_finding, dict) else None}, duration)
             except Exception as e:
-                self.log_result('threads_list_check', False, f'❌ JSON parse error: {e}', None, duration)
+                self.log_result('step8_get_individual_finding', False, f'❌ JSON parse error: {e}', None, duration)
         else:
-            self.log_result('threads_list_check', False, 
-                          f'❌ GET /api/mission_control/threads failed: {response.status_code if hasattr(response, "status_code") else response}', 
+            self.log_result('step8_get_individual_finding', False, 
+                          f'❌ GET /api/findings/{test_finding_id} failed: {response.status_code if hasattr(response, "status_code") else response}', 
                           None, duration)
-
-    def test_thread_messages(self, thread_id: str, thread_title: str):
-        """Test thread messages for timestamps and message roles"""
-        print(f"\n--- Testing messages for thread: {thread_title} ({thread_id}) ---")
         
-        success, response, duration = self.make_request('GET', f'/mission_control/thread/{thread_id}')
+        # Step 9: POST /api/findings/{id}/export?format=md (200, bytes)
+        print(f"\n--- Step 9: POST /api/findings/{test_finding_id}/export?format=md (200, bytes) ---")
+        success, response, duration = self.make_request('POST', f'/findings/{test_finding_id}/export', params={'format': 'md'})
         if success and response.status_code == 200:
             try:
-                thread_data = response.json()
-                messages = thread_data.get('messages', [])
-                thread_info = thread_data.get('thread', {})
-                
-                self.payloads[f'thread_messages_{thread_id}'] = thread_data
-                
-                if messages:
-                    # Check message roles and timestamps
-                    roles = [msg.get('role') for msg in messages]
-                    timestamps = [msg.get('created_at', '') for msg in messages]
-                    phoenix_timestamps = [ts for ts in timestamps if '-07:00' in ts]
-                    
-                    self.log_result('thread_messages_check', True, 
-                                  f'✅ Thread {thread_title} has {len(messages)} messages with roles: {set(roles)}, {len(phoenix_timestamps)} Phoenix timestamps', 
-                                  {'message_count': len(messages), 'roles': roles, 'phoenix_count': len(phoenix_timestamps), 'sample_timestamps': timestamps[:3]}, duration)
-                else:
-                    self.log_result('thread_messages_check', True, 
-                                  f'✅ Thread {thread_title} exists but has no messages', 
-                                  {'message_count': 0, 'thread_info': thread_info}, duration)
+                export_content = response.text if hasattr(response, 'text') else str(response)
+                content_type = response.headers.get('content-type', 'unknown')
+                self.payloads['step9_export'] = {
+                    'content_preview': export_content[:500],
+                    'content_length': len(export_content),
+                    'content_type': content_type
+                }
+                self.log_result('step9_export_finding', True, 
+                              f'✅ POST /api/findings/{test_finding_id}/export?format=md returned 200 with {len(export_content)} bytes, content-type: {content_type}', 
+                              {'export_length': len(export_content), 'content_type': content_type, 'preview': export_content[:200]}, duration)
             except Exception as e:
-                self.log_result('thread_messages_check', False, f'❌ JSON parse error: {e}', None, duration)
+                self.log_result('step9_export_finding', False, f'❌ Export processing error: {e}', None, duration)
         else:
-            self.log_result('thread_messages_check', False, 
-                          f'❌ GET /api/mission_control/thread/{thread_id} failed: {response.status_code if hasattr(response, "status_code") else response}', 
+            self.log_result('step9_export_finding', False, 
+                          f'❌ POST /api/findings/{test_finding_id}/export?format=md failed: {response.status_code if hasattr(response, "status_code") else response}', 
                           None, duration)
 
-    def run_investigation(self):
-        """Run the user-reported issues investigation"""
-        print(f"Starting User-Reported Issues Investigation - Base URL: {API_BASE}")
+    def run_findings_retest(self):
+        """Run the complete findings re-test as per review request"""
+        print(f"Starting Findings Endpoints Re-Testing - Base URL: {API_BASE}")
         print("=" * 100)
         
         start_time = time.time()
         
-        # Test findings endpoints
-        self.test_findings_endpoints()
-        
-        # Test missions list
-        self.test_missions_list()
-        
-        # Test mission control threads
-        self.test_mission_control_threads()
+        # Test complete findings flow
+        self.test_findings_complete_flow()
         
         total_duration = time.time() - start_time
         
         # Summary
         print("\n" + "=" * 100)
-        print("USER-REPORTED ISSUES INVESTIGATION SUMMARY")
+        print("FINDINGS ENDPOINTS RE-TESTING SUMMARY")
         print("=" * 100)
         
         passed = sum(1 for r in self.results if r['success'])
@@ -400,15 +334,6 @@ class UserIssuesTester:
         print(f"Passed: {passed}")
         print(f"Failed: {failed}")
         print(f"Total Duration: {total_duration:.2f}s")
-        
-        # Categorize results
-        findings_tests = [r for r in self.results if 'finding' in r['test']]
-        missions_tests = [r for r in self.results if 'mission' in r['test']]
-        threads_tests = [r for r in self.results if 'thread' in r['test']]
-        
-        print(f"\nFINDINGS TESTS: {sum(1 for r in findings_tests if r['success'])}/{len(findings_tests)} passed")
-        print(f"MISSIONS TESTS: {sum(1 for r in missions_tests if r['success'])}/{len(missions_tests)} passed")
-        print(f"THREADS TESTS: {sum(1 for r in threads_tests if r['success'])}/{len(threads_tests)} passed")
         
         if failed > 0:
             print("\nFAILED TESTS:")
@@ -424,8 +349,13 @@ class UserIssuesTester:
         for step, payload in self.payloads.items():
             print(f"  {step}: {type(payload).__name__} ({len(str(payload))} chars)")
         
+        # Phoenix timestamp verification summary
+        phoenix_tests = [r for r in self.results if 'phoenix_timestamps' in str(r.get('response_data', {}))]
+        phoenix_passed = sum(1 for r in phoenix_tests if r.get('response_data', {}).get('phoenix_timestamps', False))
+        print(f"\nPHOENIX TIMESTAMPS: {phoenix_passed}/{len(phoenix_tests)} endpoints verified with Phoenix timezone (-07:00)")
+        
         return self.results, self.payloads
 
 if __name__ == "__main__":
-    tester = UserIssuesTester()
-    results, payloads = tester.run_investigation()
+    tester = FindingsRetester()
+    results, payloads = tester.run_findings_retest()
