@@ -847,7 +847,10 @@ async def duplicate_run_internal(mission_id: str, source_thread_id: str, start_n
 async def duplicate_run(payload: DuplicateRunInput):
     return await duplicate_run_internal(mission_id=payload.mission_id, source_thread_id=payload.source_thread_id, start_now=bool(payload.start_now))
 
-# Providers module routes are in backend/providers/routes.py (unchanged)
+# Providers
+from providers.routes import router as provider_router
+app.include_router(provider_router)
+app.include_router(api)
 
 # Shutdown hook
 @app.on_event("shutdown")
