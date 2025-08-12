@@ -646,6 +646,14 @@ class ThreadCreate(BaseModel):
     title: str
     mission_id: Optional[str] = None
 
+class ThreadUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: Optional[str] = None
+    mission_id: Optional[str] = None
+    goal: Optional[str] = None
+    stage: Optional[str] = None
+    synopsis: Optional[str] = None
+
 class Message(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = Field(default_factory=new_id)
