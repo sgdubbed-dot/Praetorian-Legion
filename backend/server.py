@@ -305,6 +305,23 @@ class SnapshotFindingInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     thread_id: str
 
+def compute_thread_status(d: Dict[str, Any], mission: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    # Helper to ensure status and safe defaults for thread
+    status = "Unlinked"
+    if mission:
+        st = mission.get("state")
+        if st in {"scanning", "engaging", "escalating"}: status = "Running"
+        elif st == "paused": status = "Paused"
+        elif st == "complete": status = "Completed"
+        elif st == "aborted": status = "Aborted"
+    d = {**{ "goal": None, "stage": d.get("stage") or "brainstorm", "synopsis": d.get("synopsis") or None, "pinned_message_ids": d.get("pinned_message_ids") or [] }, **d}
+    d.pop("_id", None)
+    return {**d, "thread_status": status}
+
+@api.get("/mission_control/threads", tags=["mission_control"])
+async def get_mission_control_threads():
+    # This endpoint will be implemented later
+    return []
 @api.post("/mission_control/snapshot_findings")
 async def snapshot_findings(payload: SnapshotFindingInput):
     th = await COLL_THREADS.find_one({"_id": payload.thread_id})
