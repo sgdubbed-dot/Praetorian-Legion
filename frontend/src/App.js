@@ -64,6 +64,8 @@ function App() {
             <Route path="/guardrails" element={<Guardrails />} />
             <Route path="/guardrails/:id" element={<GuardrailDetail />} />
             <Route path="/exports" element={<Exports />} />
+            <Route path="/findings" element={<Findings />} />
+            <Route path="/findings/:id" element={<FindingDetail />} />
           </Routes>
         </div>
       </BrowserRouter>
