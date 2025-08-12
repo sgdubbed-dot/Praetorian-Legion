@@ -1,10 +1,8 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
-import "./App.css";
+import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import MissionControl from "./pages/MissionControl";
 import Missions from "./pages/Missions";
 import MissionDetail from "./pages/MissionDetail";
-import Agents from "./pages/Agents";
 import Forums from "./pages/Forums";
 import Rolodex from "./pages/Rolodex";
 import ProspectDetail from "./pages/ProspectDetail";
@@ -15,57 +13,46 @@ import GuardrailDetail from "./pages/GuardrailDetail";
 import Exports from "./pages/Exports";
 import Findings from "./pages/Findings";
 import FindingDetail from "./pages/FindingDetail";
+import ErrorBoundary from "./components/ErrorBoundary";
 
-const NavBar = () => (
-  <div className="w-full bg-neutral-900 text-white">
-    <div className="max-w-6xl mx-auto flex flex-wrap gap-3 p-3 text-sm">
-      {[
-        ["Mission Control", "/"],
-        ["Missions", "/missions"],
-        ["Forums", "/forums"],
-        ["Rolodex", "/rolodex"],
-        ["Hot Leads", "/hotleads"],
-        ["Agents", "/agents"],
-        ["Guardrails", "/guardrails"],
-        ["Exports", "/exports"],
-        ["Findings", "/findings"],
-      ].map(([label, path]) => (
-        <NavLink
-          key={path}
-          to={path}
-          end
-          className={({ isActive }) =>
-            `px-3 py-1 rounded ${isActive ? "bg-blue-600" : "hover:bg-neutral-800"}`
-          }
-        >
-          {label}
-        </NavLink>
-      ))}
-    </div>
-  </div>
-);
-
-function App() {
+function NavLink({ to, children }) {
+  const location = useLocation();
+  const active = location.pathname.startsWith(to);
   return (
-    <div className="min-h-screen bg-neutral-100">
+    <Link to={to} className={`px-3 py-2 rounded ${active ? "bg-blue-600 text-white" : "hover:bg-neutral-200"}`}>{children}</Link>
+  );
+}
+
+function AppShell() {
+  return (
+    <div className="p-4 space-y-4">
       <BrowserRouter>
-        <NavBar />
-        <div className="max-w-6xl mx-auto p-4">
+        <div className="flex items-center gap-2 bg-white rounded shadow p-2">
+          <NavLink to="/">Mission Control</NavLink>
+          <NavLink to="/missions">Missions</NavLink>
+          <NavLink to="/forums">Forums</NavLink>
+          <NavLink to="/rolodex">Rolodex</NavLink>
+          <NavLink to="/hotleads">Hot Leads</NavLink>
+          <NavLink to="/agents">Agents</NavLink>
+          <NavLink to="/guardrails">Guardrails</NavLink>
+          <NavLink to="/exports">Exports</NavLink>
+          <NavLink to="/findings">Findings</NavLink>
+        </div>
+        <div>
           <Routes>
             <Route path="/" element={<MissionControl />} />
-            <Route path="/missions" element={<Missions />} />
-            <Route path="/missions/:id" element={<MissionDetail />} />
+            <Route path="/missions" element={<ErrorBoundary page="Missions"><Missions /></ErrorBoundary>} />
+            <Route path="/missions/:id" element={<ErrorBoundary page="MissionDetail"><MissionDetail /></ErrorBoundary>} />
             <Route path="/forums" element={<Forums />} />
             <Route path="/rolodex" element={<Rolodex />} />
             <Route path="/prospects/:id" element={<ProspectDetail />} />
             <Route path="/hotleads" element={<HotLeads />} />
             <Route path="/hotleads/:id" element={<HotLeadDetail />} />
-            <Route path="/agents" element={<Agents />} />
             <Route path="/guardrails" element={<Guardrails />} />
             <Route path="/guardrails/:id" element={<GuardrailDetail />} />
             <Route path="/exports" element={<Exports />} />
-            <Route path="/findings" element={<Findings />} />
-            <Route path="/findings/:id" element={<FindingDetail />} />
+            <Route path="/findings" element={<ErrorBoundary page="Findings"><Findings /></ErrorBoundary>} />
+            <Route path="/findings/:id" element={<ErrorBoundary page="FindingDetail"><FindingDetail /></ErrorBoundary>} />
           </Routes>
         </div>
       </BrowserRouter>
@@ -73,4 +60,6 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return <AppShell />;
+}
