@@ -1,6 +1,83 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { api, phoenixTime } from "../api";
 
+function StatusPill({ status }) {
+  const s = (status || "Unlinked").toLowerCase();
+  const map = {
+    running: "bg-green-100 text-green-800",
+    paused: "bg-yellow-100 text-yellow-800",
+    completed: "bg-neutral-200 text-neutral-700",
+    aborted: "bg-red-100 text-red-800",
+    unlinked: "bg-neutral-100 text-neutral-700",
+  };
+  const cls = map[s] || map.unlinked;
+  const label = status || "Unlinked";
+  return <span className={`text-[11px] px-2 py-0.5 rounded ${cls}`}>{label}</span>;
+}
+
+function RunControls({ thread, onActionDone }) {
+  const [busy, setBusy] = useState(false);
+  const tid = thread.thread_id;
+  const mid = thread.mission_id;
+
+  const call = async (method, url, body) => {
+    setBusy(true);
+    try {
+      if (method === "patch") await api.patch(url, body || {});
+      else if (method === "post") await api.post(url, body || {});
+      else if (method === "get") await api.get(url);
+      onActionDone && onActionDone();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("RUN CTRL ERROR", e);
+    } finally { setBusy(false); }
+  };
+
+  const onRun = async () => {
+    if (!tid) return;
+    // If no mission linked: create mission now via chat trigger
+    if (!mid) {
+      await api.post("/mission_control/message", { thread_id: tid, text: "create mission now" });
+      onActionDone && onActionDone();
+      return;
+    }
+    // If mission linked and paused → resume; if completed/aborted → duplicate & start
+    try {
+      const thr = await api.get(`/mission_control/thread/${tid}?limit=1`);
+      const status = (thr.data?.thread?.thread_status || "Unlinked").toLowerCase();
+      if (status === "paused") {
+        await call("post", `/missions/${thread.mission_id}/state`, { state: "resume" });
+        return;
+      }
+      if (status === "completed" || status === "aborted") {
+        const ok = window.confirm("Duplicate & Start a new run?");
+        if (!ok) return;
+        await call("post", "/mission_control/duplicate_run", { mission_id: thread.mission_id, source_thread_id: tid, new_thread: true, start_now: true });
+        return;
+      }
+      // Already running → post a short note
+      await api.post("/mission_control/message", { thread_id: tid, text: "run mission now" });
+      onActionDone && onActionDone();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("RUN status check failed", e);
+    }
+  };
+
+  const onPause = async () => { if (!mid) return; await call("post", `/missions/${mid}/state`, { state: "paused" }); };
+  const onStop = async () => { if (!mid) return; await call("post", `/missions/${mid}/state`, { state: "complete" }); };
+  const onAbort = async () => { if (!mid) return; await call("post", `/missions/${mid}/state`, { state: "aborted" }); };
+
+  return (
+    <div className="flex items-center gap-1">
+      <button disabled={busy} onClick={onRun} className="text-[11px] px-2 py-0.5 rounded bg-green-600 text-white">Run</button>
+      <button disabled={busy || !mid} onClick={onPause} className="text-[11px] px-2 py-0.5 rounded bg-yellow-600 text-white">Pause</button>
+      <button disabled={busy || !mid} onClick={onStop} className="text-[11px] px-2 py-0.5 rounded bg-neutral-700 text-white">Stop</button>
+      <button disabled={busy || !mid} onClick={onAbort} className="text-[11px] px-2 py-0.5 rounded bg-red-700 text-white">Abort</button>
+    </div>
+  );
+}
+
 export default function MissionControl() {
   // Threads + selection
   const [threads, setThreads] = useState([]);
