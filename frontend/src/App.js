@@ -13,6 +13,8 @@ import HotLeadDetail from "./pages/HotLeadDetail";
 import Guardrails from "./pages/Guardrails";
 import GuardrailDetail from "./pages/GuardrailDetail";
 import Exports from "./pages/Exports";
+import Findings from "./pages/Findings";
+import FindingDetail from "./pages/FindingDetail";
 
 const NavBar = () => (
   <div className="w-full bg-neutral-900 text-white">
