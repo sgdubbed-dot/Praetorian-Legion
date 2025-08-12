@@ -777,6 +777,77 @@ async def mission_control_post_message(payload: MCChatInput):
     human = Message(thread_id=thread_id, mission_id=th.get("mission_id"), role="human", text=txt)
     hdoc = human.model_dump(); hdoc["_id"] = human.id
     await COLL_MESSAGES.insert_one(hdoc)
+
+    # Deterministic trigger: create mission now
+    lowered = txt.lower().strip()
+    trigger_phrases = ["create mission now", "approve and create mission now", "create & start mission now"]
+    if any(p in lowered for p in trigger_phrases):
+        # Prepare draft via convert_to_draft; force research_only posture; title must equal thread title
+        fields_override = {"posture": "research_only", "title": th.get("title", "")}
+        objective_text = ""
+        try:
+            summ = await mission_control_summarize(SummarizeInput(thread_id=thread_id))
+            stext = (summ or {}).get("structured_text") or ""
+            # Try to extract an Objective line; else first non-empty line
+            for line in stext.splitlines():
+                if line.lower().startswith("objective"):
+                    # assume format like 'Objective: ...'
+                    parts = line.split(":", 1)
+                    if len(parts) == 2:
+                        objective_text = parts[1].strip()
+                        break
+            if not objective_text:
+                objective_text = next((line.strip("- ") for line in stext.splitlines() if line.strip()), "")
+        except Exception:
+            objective_text = ""
+        if objective_text:
+            fields_override["objective"] = objective_text
+        conv = await mission_control_convert_to_draft(ConvertToDraftInput(thread_id=thread_id, fields_override=fields_override))
+        await log_event("trigger_invoked_create_now", "backend/mission_control", {"thread_id": thread_id})
+        draft = conv.get("draft", {})
+        # Create mission immediately
+        created = await create_mission(MissionCreate(**{
+            "title": th.get("title", "New Mission"),
+            "objective": draft.get("objective", ""),
+            "posture": "research_only",
+            "state": "scanning",
+        }))
+        mission_id = created["id"]
+        # Link thread
+        await COLL_THREADS.update_one({"_id": thread_id}, {"$set": {"mission_id": mission_id, "updated_at": now_iso()}})
+        await log_event("mission_created", "backend/mission_control", {"mission_id": mission_id, "thread_id": thread_id})
+        # Start mission
+        await update_by_id(COLL_MISSIONS, mission_id, {"state": "engaging"})
+        await log_event("mission_started", "backend/mission_control", {"mission_id": mission_id})
+        # Ensure Legatus posture handling
+        await ensure_legatus_idle_if_research_only_exists()
+        # Findings burst: immediate snapshot
+        try:
+            await snapshot_findings(SnapshotFindingInput(thread_id=thread_id))
+        except Exception as e:
+            await log_event("findings_snapshot_schedule_failed", "backend/findings", {"thread_id": thread_id, "error": f"T+0 failed: {str(e)}"})
+        # Schedule T+5 minutes snapshot
+        async def delayed_snapshot(thread_id_inner: str, mission_id_inner: str):
+            try:
+                await asyncio.sleep(300)
+                # Validate link intact
+                nth = await COLL_THREADS.find_one({"_id": thread_id_inner})
+                if not nth or nth.get("mission_id") != mission_id_inner:
+                    await log_event("findings_snapshot_schedule_failed", "backend/findings", {"thread_id": thread_id_inner, "reason": "thread unlinked or not found"})
+                    return
+                await snapshot_findings(SnapshotFindingInput(thread_id=thread_id_inner))
+            except Exception as e:
+                await log_event("findings_snapshot_schedule_failed", "backend/findings", {"thread_id": thread_id_inner, "error": str(e)})
+        asyncio.create_task(delayed_snapshot(thread_id, mission_id))
+        # Append concise confirmation instead of more setup questions
+        assistant_text = "Mission created & running. I’ll post findings updates shortly."
+        assistant = Message(thread_id=thread_id, mission_id=mission_id, role="praefectus", text=assistant_text, metadata={"reframed": False})
+        adoc = assistant.model_dump(); adoc["_id"] = assistant.id
+        await COLL_MESSAGES.insert_one(adoc)
+        await COLL_THREADS.update_one({"_id": thread_id}, {"$set": {"updated_at": now_iso()}, "$inc": {"message_count": 2}})
+        await log_event("praefectus_message_appended", "backend/mission_control", {"thread_id": thread_id, "model_id": select_praefectus_default_model(), "reframed": False})
+        return {"assistant": {"text": assistant_text, "created_at": assistant.created_at, "reframed": False}, "mission_id": mission_id}
+
     # LLM call
     client = get_llm_client()
     model_id = select_praefectus_default_model()
