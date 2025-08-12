@@ -265,6 +265,90 @@ agent_communication:
 user_problem_statement: "Feature 3 Backend Regression Testing: Run a quick regression on backend after Feature 3 partial backend changes: 1) Sanity: GET /api/health 2) Create product_brief guardrail: POST /api/guardrails with type=product_brief, scope=global, value payload provided by user 3) Mission Control basic flow still works: POST /api/mission_control/threads; POST /api/mission_control/message; GET /api/mission_control/thread/{id}?limit=50 4) Verify context_preamble_used event logged: GET /api/events?source=backend/mission_control limit=5 5) Verify assistant response includes reframed=false in return body or metadata stored 6) Findings endpoints smoke: Create a mission, link a thread by PATCH /api/mission_control/threads/{id} with mission_id, then POST /api/mission_control/snapshot_findings; GET /api/findings?mission_id=... ; GET /api/findings/{id}; POST /api/findings/{id}/export?format=md 7) Confirm Phoenix timestamp strings present in created objects"
 
 backend:
+  - task: "Health endpoint sanity check"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "FEATURE 3 REGRESSION: ✅ GET /api/health working correctly with Phoenix timestamp format (-07:00). Response includes {ok: true, timestamp} as expected. Sanity check passed (77ms)."
+
+  - task: "Product brief guardrail creation"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "FEATURE 3 REGRESSION: ✅ POST /api/guardrails with type=product_brief, scope=global successfully created guardrail with comprehensive product brief payload. Guardrail ID returned, Phoenix timestamp present, all fields properly stored (59ms)."
+
+  - task: "Mission Control basic flow verification"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "FEATURE 3 REGRESSION: ✅ Mission Control basic flow working correctly: (1) POST /api/mission_control/threads created thread (51ms), (2) POST /api/mission_control/message sent message and received assistant response (285 chars, reframed=false, Phoenix timestamp, 2217ms), (3) GET /api/mission_control/thread/{id}?limit=50 retrieved 2 messages (human+praefectus) with Phoenix timestamps (16ms). All core functionality verified."
+
+  - task: "Context preamble event logging"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "FEATURE 3 REGRESSION: ✅ context_preamble_used event properly logged in GET /api/events?source=backend/mission_control. Event includes thread_id, model_id (gpt-5-chat-latest), and Phoenix timestamps. Event logging system working correctly (9ms)."
+
+  - task: "Assistant reframed metadata"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "FEATURE 3 REGRESSION: ✅ Assistant response includes reframed metadata in return body. Verified reframed=false present in assistant response structure. Metadata properly included in API response."
+
+  - task: "Findings endpoints smoke test"
+    implemented: false
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+        - agent: "testing"
+        - comment: "FEATURE 3 REGRESSION: ❌ Findings endpoints not yet implemented. POST /api/mission_control/snapshot_findings and GET /api/findings endpoints return 404. Mission and thread creation/linking works correctly, but findings functionality is pending implementation. This is expected for partial Feature 3 backend changes."
+
+  - task: "Phoenix timestamp verification"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+        - agent: "testing"
+        - comment: "FEATURE 3 REGRESSION: ✅ All Phoenix timestamp strings present in created objects. Verified 5/5 timestamps use Phoenix timezone (-07:00) format: health endpoint, guardrail created_at, message created_at, mission created_at, and mission updated_at. Timestamp consistency maintained across all endpoints."
+
   - task: "Provider endpoints verification"
     implemented: true
     working: true
