@@ -249,7 +249,7 @@ export default function MissionControl() {
             onClick={onNewThread}
             className="text-xs px-2 py-1 bg-blue-600 text-white rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600"
           >
-            + New Thread
+            + New Operation
           </button>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-2 mb-2 border-b">
