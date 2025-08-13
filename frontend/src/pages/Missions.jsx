@@ -11,7 +11,7 @@ export default function Missions() {
 
   const fetchAll = async () => {
     try {
-      setItems((await api.get("/operations")).data);
+      setItems((await api.get("/campaigns")).data);
     } catch (e) {
       console.error("PAGE ERROR:", e?.name || e?.message || e);
     }
@@ -20,7 +20,7 @@ export default function Missions() {
 
   const create = async () => {
     try {
-      await api.post("/operations", form);
+      await api.post("/campaigns", form);
       setForm({ title: "", objective: "", posture: "help_only" });
       await fetchAll();
     } catch (e) {
@@ -30,7 +30,7 @@ export default function Missions() {
 
   const changeState = async (id, state) => {
     try {
-      await api.post(`/operations/${id}/state`, { state });
+      await api.post(`/campaigns/${id}/state`, { state });
       await fetchAll();
     } catch (e) {
       console.error("PAGE ERROR:", e?.name || e?.message || e);
@@ -67,7 +67,7 @@ export default function Missions() {
           </thead>
           <tbody>
             {items.map((m) => (
-              <tr key={m.id} className="border-t hover:bg-neutral-50 cursor-pointer" onClick={() => nav(`/operations/${m.id}`)}>
+              <tr key={m.id} className="border-t hover:bg-neutral-50 cursor-pointer" onClick={() => nav(`/campaigns/${m.id}`)}>
                 <td className="p-2">{m.title}</td>
                 <td className="p-2">{m.state}</td>
                 <td className="p-2">{postureLabel(m.posture)}</td>
