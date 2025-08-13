@@ -122,7 +122,7 @@ async def create_event(payload: Dict[str, Any]):
     return {"ok": True, "timestamp": now_iso()}
 
 # Missions
-class Operation(BaseModel):
+class Campaign(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = Field(default_factory=new_id)
     title: str
