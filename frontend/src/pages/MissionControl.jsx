@@ -46,7 +46,7 @@ function RunControls({ thread, onActionDone }) {
       const thr = await api.get(`/mission_control/thread/${tid}?limit=1`);
       const status = (thr.data?.thread?.thread_status || "Unlinked").toLowerCase();
       if (status === "paused") {
-        await call("post", `/operations/${thread.mission_id}/state`, { state: "resume" });
+        await call("post", `/campaigns/${thread.mission_id}/state`, { state: "resume" });
         return;
       }
       if (status === "completed" || status === "aborted") {
@@ -64,9 +64,9 @@ function RunControls({ thread, onActionDone }) {
     }
   };
 
-  const onPause = async () => { if (!mid) return; await call("post", `/operations/${mid}/state`, { state: "paused" }); };
-  const onStop = async () => { if (!mid) return; await call("post", `/operations/${mid}/state`, { state: "complete" }); };
-  const onAbort = async () => { if (!mid) return; await call("post", `/operations/${mid}/state`, { state: "aborted" }); };
+  const onPause = async () => { if (!mid) return; await call("post", `/campaigns/${mid}/state`, { state: "paused" }); };
+  const onStop = async () => { if (!mid) return; await call("post", `/campaigns/${mid}/state`, { state: "complete" }); };
+  const onAbort = async () => { if (!mid) return; await call("post", `/campaigns/${mid}/state`, { state: "aborted" }); };
 
   return (
     <div className="flex items-center gap-1">
