@@ -265,7 +265,7 @@ agent_communication:
 user_problem_statement: "CRITICAL BUG VERIFICATION - CONTEXT MANAGEMENT FAILURE: Despite successful implementation of Mission→Operation terminology changes, Praefectus has a CRITICAL CONTEXT BUG: 1) Terminology Changes: ✅ SUCCESSFUL - Navigation shows 'Operations Control' and 'Operations', Button shows '+ New Operation', Backend endpoints changed to /api/operations, Database collections renamed to COLL_OPERATIONS, All UI elements updated correctly. 2) CRITICAL CONTEXT BUG: ❌ STILL PRESENT - Created thread 'Operation Market Cartography' (ID: f2cc7473-4e8c-4b66-8403-25567e8f954c), Sent message: 'I need to identify our target market for Praetoria. Focus on GitHub repositories and Discord communities', Praefectus gave detailed response with 'Operation Market Cartography — Developer Recon Plan', When asked 'Tell me about the operation we are building' - Praefectus responds: 'We haven't actually defined any operation yet in this thread'. THIS IS THE EXACT BUG REPORTED BY USER: Praefectus doesn't read conversation history within the same thread. He responds to individual messages but loses context when asked to summarize what was discussed."
 
 backend:
-  - task: "Praetoria Knowledge Endpoint Implementation"
+  - task: "Terminology Changes Verification (Mission→Operation)"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -275,21 +275,21 @@ backend:
     status_history:
         - working: true
         - agent: "testing"
-        - comment: "✅ COMPREHENSIVE KNOWLEDGE ENDPOINT VERIFIED: GET /api/knowledge/praetoria returns complete Praetoria knowledge base with 9 required sections (company, mission, tagline, evolution_stages, target_personas, competitive_advantages, market_problems, business_model, north_star). All 3 evolution stages present (Stage 1: Live now, Stage 2: 2-4 months, Stage 3: 6-12 months). 5 target personas with pain points and value props. 6 competitive advantages including framework-agnostic support. Comprehensive data structure verified for Augustus integration."
+        - comment: "✅ TERMINOLOGY CHANGES SUCCESSFUL: Operations endpoint (/api/operations) working correctly. Operation creation successful with new terminology. Backend collections renamed to COLL_OPERATIONS. All API endpoints updated from /missions to /operations."
 
-  - task: "Praefectus System Prompt Knowledge Integration"
-    implemented: true
-    working: true
+  - task: "CRITICAL CONTEXT BUG - Conversation History Management"
+    implemented: false
+    working: false
     file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
+    stuck_count: 3
+    priority: "critical"
     needs_retesting: false
     status_history:
-        - working: true
+        - working: false
         - agent: "testing"
-        - comment: "✅ SYSTEM PROMPT INTEGRATION VERIFIED: Praefectus system prompt (lines 373-410) contains comprehensive Praetoria knowledge including company mission, 3-stage evolution, target personas, competitive advantages, and agent economy expertise. System prompt integration test passed with 9/11 indicators found, role understanding confirmed (strategic AI commander), mission understanding confirmed (visibility and control layer for agent economy). Praefectus demonstrates expert authority on Praetoria's mission and capabilities."
+        - comment: "❌ CRITICAL CONTEXT BUG CONFIRMED: Praefectus does NOT read conversation history within threads. ROOT CAUSE IDENTIFIED: Line 601 in server.py only sends current user message to LLM, not conversation history. When user asks 'Tell me about the operation we are building' after discussing Operation Market Cartography, Praefectus responds 'We haven't actually defined any operation yet in this thread' - this is EXACTLY the bug reported by user. The LLM call at line 601 should include the entire conversation history from the thread, not just: messages=[{'role': 'system', 'content': SYSTEM_PROMPT}, {'role': 'user', 'content': txt}]"
 
-  - task: "Mission Control Praefectus Knowledge Demonstration"
+  - task: "Thread Creation and Basic Messaging"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -299,19 +299,19 @@ backend:
     status_history:
         - working: true
         - agent: "testing"
-        - comment: "✅ PRAEFECTUS KNOWLEDGE INTEGRATION COMPREHENSIVE: All 5 knowledge test scenarios passed successfully. (1) Praetoria overview: 5/6 keywords found, 2276 chars response. (2) Evolution stages: 7/7 keywords found, 3260 chars response covering all 3 stages. (3) Target personas: 7/7 keywords found, 3349 chars response covering developers, startups, enterprises. (4) Competitive advantages: 6/6 keywords found, 3649 chars response covering framework-agnostic support. (5) Framework support: 6/6 keywords found, 2559 chars response covering LangChain, CrewAI, AutoGen. Praefectus demonstrates expert-level knowledge of Praetoria's mission, target market, and competitive positioning."
+        - comment: "✅ THREAD MESSAGING WORKS: Thread creation successful, individual message sending/receiving works correctly. Praefectus responds to individual messages appropriately. The issue is specifically with conversation context management, not basic messaging functionality."
 
-  - task: "Agent Economy Expertise Verification"
-    implemented: true
-    working: true
+  - task: "Conversation Persistence Within Threads"
+    implemented: false
+    working: false
     file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
+    stuck_count: 3
+    priority: "critical"
     needs_retesting: false
     status_history:
-        - working: true
+        - working: false
         - agent: "testing"
-        - comment: "✅ AGENT ECONOMY EXPERTISE DEMONSTRATED: All 3 expertise scenarios passed successfully. (1) Debugging expertise: 4/6 concepts found, solution-focused, 1990 chars covering trace logs, observability, framework-agnostic debugging. (2) Governance expertise: 5/6 concepts found, solution-focused, 2936 chars covering compliance, audit logs, registry, policy enforcement. (3) Identity expertise: 3/6 concepts found, solution-focused, 3029 chars covering agent identity, reputation, verification. Praefectus shows deep understanding of agent economy challenges and Praetoria's solutions across all 3 evolution stages."
+        - comment: "❌ CONVERSATION PERSISTENCE BROKEN: Tested with 4-message sequence building context about 'Operation Shadow Network' with specific details (enterprise security targets, GitHub/LinkedIn/Discord platforms, 6-week timeline). When asked to summarize the conversation, Praefectus found 0/7 expected elements and responded 'we haven't yet discussed or defined any details of the operation'. This confirms the context bug affects all conversation history, not just recent messages."
 
   - task: "Health endpoint verification"
     implemented: true
