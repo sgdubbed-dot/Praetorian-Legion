@@ -226,7 +226,7 @@ export default function MissionControl() {
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold">Mission Control — Praefectus</h2>
+            <h2 className="text-lg font-semibold">Mission Control</h2>
             {modelId && (
               <span className="text-xs px-2 py-1 rounded bg-neutral-100 border text-neutral-700">
                 Model: {modelId}
