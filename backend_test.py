@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Augustus - Comprehensive Knowledge Integration Test
-Focus: Verify Praetoria knowledge integration in Praefectus system and knowledge endpoints
+Backend API Testing for Augustus - CRITICAL CONTEXT BUG VERIFICATION
+Focus: Test Praefectus conversation context management within threads
+CRITICAL BUG: Praefectus doesn't read conversation history within the same thread
 """
 
 import requests
