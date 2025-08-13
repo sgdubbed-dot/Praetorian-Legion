@@ -271,6 +271,12 @@ export default function MissionControl() {
           <div className="mb-2 text-sm px-2 py-1 bg-green-100 text-green-800 rounded inline-block">{toast}</div>
         )}
 
+        {/* Praefectus Chat Header */}
+        <div className="mb-3 pb-2 border-b">
+          <h3 className="text-lg font-semibold text-neutral-800">Praefectus</h3>
+          <p className="text-xs text-neutral-600">Strategic AI Commander</p>
+        </div>
+
         {/* Messages */}
         <div className="h-[420px] overflow-y-auto space-y-2 border rounded p-3 bg-neutral-50">
           {!messages || messages.length === 0 ? (
