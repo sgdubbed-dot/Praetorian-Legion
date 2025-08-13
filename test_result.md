@@ -340,19 +340,20 @@ frontend:
 
 metadata:
   created_by: "testing_agent"
-  version: "3.0"
-  test_sequence: 11
+  version: "4.0"
+  test_sequence: 12
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Praetoria Knowledge Endpoint Implementation"
-    - "Praefectus System Prompt Knowledge Integration"
-    - "Mission Control Praefectus Knowledge Demonstration"
-    - "Agent Economy Expertise Verification"
-  stuck_tasks: []
+    - "CRITICAL CONTEXT BUG - Conversation History Management"
+    - "Conversation Persistence Within Threads"
+    - "Terminology Changes Verification (Mission→Operation)"
+  stuck_tasks:
+    - "CRITICAL CONTEXT BUG - Conversation History Management"
+    - "Conversation Persistence Within Threads"
   test_all: false
-  test_priority: "high_first"
+  test_priority: "critical_first"
 
 agent_communication:
     - agent: "testing"
