@@ -159,7 +159,7 @@ class CampaignUpdate(BaseModel):
     previous_active_state: Optional[str] = None
 
 @api.post("/campaigns")
-async def create_mission(payload: OperationCreate):
+async def create_mission(payload: CampaignCreate):
     mission = Campaign(**payload.model_dump())
     if mission.insights and not mission.insights_rich:
         mission.insights_rich = [{"text": t, "timestamp": now_iso()} for t in mission.insights]
