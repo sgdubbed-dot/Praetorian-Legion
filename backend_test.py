@@ -17,13 +17,12 @@ load_dotenv('/app/frontend/.env')
 BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://progress-pulse-21.preview.emergentagent.com')
 API_BASE = f"{BACKEND_URL}/api"
 
-class MissionControlTester:
+class ComprehensiveBackendTester:
     def __init__(self):
         self.results = []
         self.session = requests.Session()
         self.session.headers.update({'Content-Type': 'application/json'})
-        self.payloads = {}  # Store all payloads for reporting
-        self.report_data = {}  # Store specific data for final report
+        self.test_data = {}  # Store created test data for cleanup/reference
         
     def log_result(self, test_name: str, success: bool, message: str, response_data: Any = None, duration: float = 0):
         """Log test result with details"""
@@ -79,245 +78,536 @@ class MissionControlTester:
                     return True
         return False
 
-    def execute_mission_control_flow(self):
-        """Execute the specific 6-step flow as per review request"""
-        print("\n=== MISSION CONTROL THREAD LINKING & FINDINGS SNAPSHOT FLOW ===")
+    def test_health_endpoints(self):
+        """Test basic health endpoints"""
+        print("\n=== TESTING HEALTH ENDPOINTS ===")
         
-        # Step 1: GET /api/mission_control/threads - find latest by updated_at
-        print("\n--- Step 1: GET /api/mission_control/threads (find latest by updated_at) ---")
-        success, response, duration = self.make_request('GET', '/mission_control/threads')
-        if not success or response.status_code != 200:
-            self.log_result('step1_get_threads', False, 
-                          f'❌ GET /api/mission_control/threads failed: {response.status_code if hasattr(response, "status_code") else response}', 
+        # Test GET /api/health
+        success, response, duration = self.make_request('GET', '/health')
+        if success and response.status_code == 200:
+            try:
+                data = response.json()
+                phoenix_ok = self.verify_phoenix_timestamps(data)
+                self.log_result('health_endpoint', True, 
+                              f'Health endpoint working, Phoenix timestamps: {phoenix_ok}', 
+                              data, duration)
+            except:
+                self.log_result('health_endpoint', False, 'Health endpoint returned invalid JSON', None, duration)
+        else:
+            self.log_result('health_endpoint', False, 
+                          f'Health endpoint failed: {response.status_code if hasattr(response, "status_code") else response}', 
                           None, duration)
-            return False
         
-        try:
-            threads_data = response.json()
-            self.payloads['step1_threads'] = threads_data
-            if not isinstance(threads_data, list) or len(threads_data) == 0:
-                self.log_result('step1_get_threads', False, 
-                              f'❌ No threads found or invalid response format', 
-                              threads_data, duration)
-                return False
-            
-            # Find the most recent thread by updated_at (Phoenix time)
-            latest_thread = max(threads_data, key=lambda t: t.get('updated_at', ''))
-            thread_id = latest_thread.get('thread_id')
-            thread_title = latest_thread.get('title', 'Unknown')
-            
-            self.report_data['thread_id'] = thread_id
-            self.report_data['thread_title'] = thread_title
-            
-            phoenix_present = self.verify_phoenix_timestamps(threads_data, "threads")
-            self.log_result('step1_get_threads', True, 
-                          f'✅ Found {len(threads_data)} threads, latest: {thread_id} ("{thread_title}"), Phoenix timestamps: {phoenix_present}', 
-                          {'thread_count': len(threads_data), 'latest_thread_id': thread_id, 'latest_title': thread_title, 'phoenix_timestamps': phoenix_present}, duration)
-            
-        except Exception as e:
-            self.log_result('step1_get_threads', False, f'❌ JSON parse error: {e}', None, duration)
-            return False
-        
-        # Step 2: GET /api/missions - find mission with title containing "Mission control sanity check"
-        print("\n--- Step 2: GET /api/missions (find 'Mission control sanity check') ---")
-        success, response, duration = self.make_request('GET', '/missions')
-        if not success or response.status_code != 200:
-            self.log_result('step2_get_missions', False, 
-                          f'❌ GET /api/missions failed: {response.status_code if hasattr(response, "status_code") else response}', 
+        # Test GET /api/ (root)
+        success, response, duration = self.make_request('GET', '/')
+        if success and response.status_code == 200:
+            try:
+                data = response.json()
+                phoenix_ok = self.verify_phoenix_timestamps(data)
+                self.log_result('root_endpoint', True, 
+                              f'Root endpoint working, Phoenix timestamps: {phoenix_ok}', 
+                              data, duration)
+            except:
+                self.log_result('root_endpoint', False, 'Root endpoint returned invalid JSON', None, duration)
+        else:
+            self.log_result('root_endpoint', False, 
+                          f'Root endpoint failed: {response.status_code if hasattr(response, "status_code") else response}', 
                           None, duration)
-            return False
-        
-        try:
-            missions_data = response.json()
-            self.payloads['step2_missions'] = missions_data
-            if not isinstance(missions_data, list):
-                self.log_result('step2_get_missions', False, 
-                              f'❌ Invalid missions response format', 
-                              missions_data, duration)
-                return False
-            
-            # Find mission with title containing "Mission control sanity check"
-            target_missions = [m for m in missions_data if 'mission control sanity check' in m.get('title', '').lower()]
-            if not target_missions:
-                self.log_result('step2_get_missions', False, 
-                              f'❌ No mission found with title containing "Mission control sanity check"', 
-                              {'total_missions': len(missions_data)}, duration)
-                return False
-            
-            # If multiple, pick the most recently updated
-            target_mission = max(target_missions, key=lambda m: m.get('updated_at', ''))
-            mission_id = target_mission.get('id')
-            mission_title = target_mission.get('title', 'Unknown')
-            
-            self.report_data['mission_id'] = mission_id
-            self.report_data['mission_title'] = mission_title
-            
-            phoenix_present = self.verify_phoenix_timestamps(missions_data, "missions")
-            self.log_result('step2_get_missions', True, 
-                          f'✅ Found {len(target_missions)} matching missions, selected: {mission_id} ("{mission_title}"), Phoenix timestamps: {phoenix_present}', 
-                          {'total_missions': len(missions_data), 'matching_missions': len(target_missions), 'selected_mission_id': mission_id, 'selected_title': mission_title, 'phoenix_timestamps': phoenix_present}, duration)
-            
-        except Exception as e:
-            self.log_result('step2_get_missions', False, f'❌ JSON parse error: {e}', None, duration)
-            return False
-        
-        # Step 3: PATCH /api/mission_control/threads/{thread_id} - link thread to mission
-        print(f"\n--- Step 3: PATCH /api/mission_control/threads/{thread_id} (link to mission) ---")
-        link_data = {"mission_id": mission_id}
-        success, response, duration = self.make_request('PATCH', f'/mission_control/threads/{thread_id}', link_data)
-        if not success or response.status_code != 200:
-            self.log_result('step3_link_thread', False, 
-                          f'❌ PATCH /api/mission_control/threads/{thread_id} failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-            return False
-        
-        try:
-            linked_thread = response.json()
-            self.payloads['step3_linked_thread'] = linked_thread
-            
-            # Verify response shows mission_id set
-            if linked_thread.get('mission_id') != mission_id:
-                self.log_result('step3_link_thread', False, 
-                              f'❌ Thread linking failed - mission_id not set correctly (expected: {mission_id}, got: {linked_thread.get("mission_id")})', 
-                              linked_thread, duration)
-                return False
-            
-            phoenix_present = self.verify_phoenix_timestamps(linked_thread, "linked thread")
-            self.log_result('step3_link_thread', True, 
-                          f'✅ Thread {thread_id} successfully linked to mission {mission_id}, Phoenix timestamps: {phoenix_present}', 
-                          {'thread_id': thread_id, 'mission_id': mission_id, 'phoenix_timestamps': phoenix_present}, duration)
-            
-        except Exception as e:
-            self.log_result('step3_link_thread', False, f'❌ JSON parse error: {e}', None, duration)
-            return False
-        
-        # Step 4: POST /api/mission_control/snapshot_findings - create snapshot finding
-        print(f"\n--- Step 4: POST /api/mission_control/snapshot_findings (create snapshot) ---")
-        snapshot_data = {"thread_id": thread_id}
-        success, response, duration = self.make_request('POST', '/mission_control/snapshot_findings', snapshot_data)
-        if not success or response.status_code != 200:
-            self.log_result('step4_snapshot_findings', False, 
-                          f'❌ POST /api/mission_control/snapshot_findings failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-            return False
-        
-        try:
-            finding_created = response.json()
-            self.payloads['step4_snapshot'] = finding_created
-            
-            finding_id = finding_created.get('id')
-            finding_title = finding_created.get('title', 'Unknown')
-            
-            self.report_data['finding_id'] = finding_id
-            self.report_data['finding_title'] = finding_title
-            
-            phoenix_present = self.verify_phoenix_timestamps(finding_created, "snapshot finding")
-            self.log_result('step4_snapshot_findings', True, 
-                          f'✅ Findings snapshot created: {finding_id} ("{finding_title}"), Phoenix timestamps: {phoenix_present}', 
-                          {'finding_id': finding_id, 'finding_title': finding_title, 'phoenix_timestamps': phoenix_present}, duration)
-            
-        except Exception as e:
-            self.log_result('step4_snapshot_findings', False, f'❌ JSON parse error: {e}', None, duration)
-            return False
-        
-        # Step 5: GET /api/findings?mission_id={mission_id} - verify listing shows the new finding
-        print(f"\n--- Step 5: GET /api/findings?mission_id={mission_id} (verify new finding) ---")
-        success, response, duration = self.make_request('GET', '/findings', params={'mission_id': mission_id})
-        if not success or response.status_code != 200:
-            self.log_result('step5_verify_findings', False, 
-                          f'❌ GET /api/findings?mission_id={mission_id} failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-            return False
-        
-        try:
-            mission_findings = response.json()
-            self.payloads['step5_mission_findings'] = mission_findings
-            
-            if not isinstance(mission_findings, list):
-                self.log_result('step5_verify_findings', False, 
-                              f'❌ Invalid findings response format', 
-                              mission_findings, duration)
-                return False
-            
-            # Check if our new finding is in the list
-            new_finding_found = any(f.get('id') == finding_id for f in mission_findings)
-            if not new_finding_found:
-                self.log_result('step5_verify_findings', False, 
-                              f'❌ New finding {finding_id} not found in mission findings list', 
-                              {'findings_count': len(mission_findings), 'finding_ids': [f.get('id') for f in mission_findings]}, duration)
-                return False
-            
-            # Find the new finding's title in the list
-            new_finding_in_list = next((f for f in mission_findings if f.get('id') == finding_id), {})
-            list_finding_title = new_finding_in_list.get('title', 'Unknown')
-            
-            self.report_data['list_count'] = len(mission_findings)
-            self.report_data['list_finding_title'] = list_finding_title
-            
-            phoenix_present = self.verify_phoenix_timestamps(mission_findings, "mission findings")
-            self.log_result('step5_verify_findings', True, 
-                          f'✅ Mission findings list contains {len(mission_findings)} findings including new finding {finding_id}, Phoenix timestamps: {phoenix_present}', 
-                          {'findings_count': len(mission_findings), 'new_finding_found': True, 'phoenix_timestamps': phoenix_present}, duration)
-            
-        except Exception as e:
-            self.log_result('step5_verify_findings', False, f'❌ JSON parse error: {e}', None, duration)
-            return False
-        
-        return True
 
-    def generate_concise_report(self):
-        """Generate the concise report as requested"""
-        print("\n" + "=" * 80)
-        print("CONCISE REPORT - MISSION CONTROL THREAD LINKING & FINDINGS SNAPSHOT")
-        print("=" * 80)
+    def test_agents_system(self):
+        """Test Agents system - should return 3 agents with proper status"""
+        print("\n=== TESTING AGENTS SYSTEM ===")
         
-        # Check if we have all required data
-        required_fields = ['thread_id', 'thread_title', 'mission_id', 'mission_title', 'finding_id', 'finding_title']
-        missing_fields = [f for f in required_fields if f not in self.report_data]
-        
-        if missing_fields:
-            print(f"❌ INCOMPLETE: Missing data for {missing_fields}")
+        # Test GET /api/agents
+        success, response, duration = self.make_request('GET', '/agents')
+        if not success or response.status_code != 200:
+            self.log_result('agents_list', False, 
+                          f'GET /api/agents failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
             return
         
-        print(f"Thread ID: {self.report_data['thread_id']}")
-        print(f"Thread Title: {self.report_data['thread_title']}")
-        print(f"Mission ID: {self.report_data['mission_id']}")
-        print(f"Mission Title: {self.report_data['mission_title']}")
-        print(f"Finding ID: {self.report_data['finding_id']}")
-        print(f"Finding Title: {self.report_data['finding_title']}")
-        print(f"List Count: {self.report_data.get('list_count', 'N/A')}")
-        print(f"List Finding Title: {self.report_data.get('list_finding_title', 'N/A')}")
+        try:
+            agents_data = response.json()
+            if not isinstance(agents_data, list):
+                self.log_result('agents_list', False, 'Agents endpoint returned non-array', agents_data, duration)
+                return
+            
+            # Check for three core agents
+            agent_names = [a.get('agent_name') for a in agents_data]
+            expected_agents = ['Praefectus', 'Explorator', 'Legatus']
+            missing_agents = [name for name in expected_agents if name not in agent_names]
+            
+            if missing_agents:
+                self.log_result('agents_list', False, 
+                              f'Missing agents: {missing_agents}. Found: {agent_names}', 
+                              agents_data, duration)
+                return
+            
+            phoenix_ok = self.verify_phoenix_timestamps(agents_data)
+            self.log_result('agents_list', True, 
+                          f'All 3 agents present: {agent_names}, Phoenix timestamps: {phoenix_ok}', 
+                          {'agent_count': len(agents_data), 'agents': agent_names, 'phoenix_timestamps': phoenix_ok}, duration)
+            
+            # Store agents for later tests
+            self.test_data['agents'] = agents_data
+            
+        except Exception as e:
+            self.log_result('agents_list', False, f'JSON parse error: {e}', None, duration)
+            return
         
-        # Phoenix timestamp confirmation
-        phoenix_confirmed = False
-        for payload in self.payloads.values():
-            if self.verify_phoenix_timestamps(payload):
-                phoenix_confirmed = True
-                break
-        
-        print(f"Phoenix Timestamp Presence: {'✅ CONFIRMED' if phoenix_confirmed else '❌ NOT FOUND'}")
-        
-        print("\n" + "=" * 80)
+        # Test agent error scenario
+        print("\n--- Testing Agent Error Scenario ---")
+        success, response, duration = self.make_request('POST', '/scenarios/agent_error_retry', {'minutes': 1})
+        if success and response.status_code == 200:
+            try:
+                error_data = response.json()
+                agent_data = error_data.get('agent', {})
+                if agent_data.get('agent_name') == 'Explorator' and agent_data.get('status_light') == 'red':
+                    self.log_result('agent_error_scenario', True, 
+                                  f'Explorator error scenario triggered successfully, status: {agent_data.get("status_light")}', 
+                                  error_data, duration)
+                else:
+                    self.log_result('agent_error_scenario', False, 
+                                  f'Error scenario failed - unexpected agent data: {agent_data}', 
+                                  error_data, duration)
+            except Exception as e:
+                self.log_result('agent_error_scenario', False, f'JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('agent_error_scenario', False, 
+                          f'Agent error scenario failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
 
-    def run_mission_control_test(self):
-        """Run the complete mission control test as per review request"""
-        print(f"Starting Mission Control Thread Linking & Findings Snapshot Test - Base URL: {API_BASE}")
+    def test_prospects_rolodex(self):
+        """Test Prospects (Rolodex) endpoints"""
+        print("\n=== TESTING PROSPECTS (ROLODEX) ===")
+        
+        # Test GET /api/prospects
+        success, response, duration = self.make_request('GET', '/prospects')
+        if success and response.status_code == 200:
+            try:
+                prospects_data = response.json()
+                if isinstance(prospects_data, list):
+                    phoenix_ok = self.verify_phoenix_timestamps(prospects_data)
+                    self.log_result('prospects_list', True, 
+                                  f'Prospects list working, {len(prospects_data)} prospects, Phoenix timestamps: {phoenix_ok}', 
+                                  {'prospect_count': len(prospects_data), 'phoenix_timestamps': phoenix_ok}, duration)
+                else:
+                    self.log_result('prospects_list', False, 'Prospects endpoint returned non-array', prospects_data, duration)
+                    return
+            except Exception as e:
+                self.log_result('prospects_list', False, f'JSON parse error: {e}', None, duration)
+                return
+        else:
+            self.log_result('prospects_list', False, 
+                          f'GET /api/prospects failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+            return
+        
+        # Test POST /api/prospects (create test prospect)
+        test_prospect = {
+            "name_or_alias": "Sarah Chen",
+            "handles": {
+                "linkedin": "https://linkedin.com/in/sarah-chen-ai",
+                "twitter": "@sarahchen_ai"
+            },
+            "priority_state": "warm",
+            "source_type": "manual"
+        }
+        
+        success, response, duration = self.make_request('POST', '/prospects', test_prospect)
+        if success and response.status_code == 200:
+            try:
+                created_prospect = response.json()
+                prospect_id = created_prospect.get('id')
+                if prospect_id:
+                    self.test_data['prospect_id'] = prospect_id
+                    phoenix_ok = self.verify_phoenix_timestamps(created_prospect)
+                    self.log_result('prospects_create', True, 
+                                  f'Prospect created successfully: {prospect_id}, Phoenix timestamps: {phoenix_ok}', 
+                                  created_prospect, duration)
+                else:
+                    self.log_result('prospects_create', False, 'Created prospect missing ID', created_prospect, duration)
+            except Exception as e:
+                self.log_result('prospects_create', False, f'JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('prospects_create', False, 
+                          f'POST /api/prospects failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+
+    def test_hotleads(self):
+        """Test HotLeads endpoints"""
+        print("\n=== TESTING HOTLEADS ===")
+        
+        # Test GET /api/hotleads
+        success, response, duration = self.make_request('GET', '/hotleads')
+        if success and response.status_code == 200:
+            try:
+                hotleads_data = response.json()
+                if isinstance(hotleads_data, list):
+                    phoenix_ok = self.verify_phoenix_timestamps(hotleads_data)
+                    self.log_result('hotleads_list', True, 
+                                  f'HotLeads list working, {len(hotleads_data)} hotleads, Phoenix timestamps: {phoenix_ok}', 
+                                  {'hotlead_count': len(hotleads_data), 'phoenix_timestamps': phoenix_ok}, duration)
+                else:
+                    self.log_result('hotleads_list', False, 'HotLeads endpoint returned non-array', hotleads_data, duration)
+                    return
+            except Exception as e:
+                self.log_result('hotleads_list', False, f'JSON parse error: {e}', None, duration)
+                return
+        else:
+            self.log_result('hotleads_list', False, 
+                          f'GET /api/hotleads failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+            return
+        
+        # Create test hotlead (need prospect_id)
+        prospect_id = self.test_data.get('prospect_id')
+        if not prospect_id:
+            self.log_result('hotleads_create', False, 'No prospect_id available for hotlead creation', None, 0)
+            return
+        
+        test_hotlead = {
+            "prospect_id": prospect_id,
+            "evidence": [
+                {
+                    "type": "social_signal",
+                    "source": "twitter",
+                    "content": "Just posted about needing help with AI automation for her startup",
+                    "timestamp": datetime.now().isoformat()
+                }
+            ],
+            "proposed_script": "Hi Sarah! I saw your tweet about AI automation. We specialize in helping startups implement AI solutions efficiently. Would love to share some insights that might be helpful for your project."
+        }
+        
+        success, response, duration = self.make_request('POST', '/hotleads', test_hotlead)
+        if success and response.status_code == 200:
+            try:
+                created_hotlead = response.json()
+                hotlead_id = created_hotlead.get('id')
+                if hotlead_id:
+                    self.test_data['hotlead_id'] = hotlead_id
+                    phoenix_ok = self.verify_phoenix_timestamps(created_hotlead)
+                    self.log_result('hotleads_create', True, 
+                                  f'HotLead created successfully: {hotlead_id}, Phoenix timestamps: {phoenix_ok}', 
+                                  created_hotlead, duration)
+                    
+                    # Test status update
+                    success, response, duration = self.make_request('POST', f'/hotleads/{hotlead_id}/status', {'status': 'approved'})
+                    if success and response.status_code == 200:
+                        try:
+                            updated_hotlead = response.json()
+                            if updated_hotlead.get('status') == 'approved':
+                                self.log_result('hotleads_status_update', True, 
+                                              f'HotLead status updated to approved', 
+                                              updated_hotlead, duration)
+                            else:
+                                self.log_result('hotleads_status_update', False, 
+                                              f'Status update failed - status not changed', 
+                                              updated_hotlead, duration)
+                        except Exception as e:
+                            self.log_result('hotleads_status_update', False, f'JSON parse error: {e}', None, duration)
+                    else:
+                        self.log_result('hotleads_status_update', False, 
+                                      f'Status update failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                                      None, duration)
+                else:
+                    self.log_result('hotleads_create', False, 'Created hotlead missing ID', created_hotlead, duration)
+            except Exception as e:
+                self.log_result('hotleads_create', False, f'JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('hotleads_create', False, 
+                          f'POST /api/hotleads failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+
+    def test_guardrails(self):
+        """Test Guardrails endpoints"""
+        print("\n=== TESTING GUARDRAILS ===")
+        
+        # Test GET /api/guardrails
+        success, response, duration = self.make_request('GET', '/guardrails')
+        if success and response.status_code == 200:
+            try:
+                guardrails_data = response.json()
+                if isinstance(guardrails_data, list):
+                    phoenix_ok = self.verify_phoenix_timestamps(guardrails_data)
+                    self.log_result('guardrails_list', True, 
+                                  f'Guardrails list working, {len(guardrails_data)} guardrails, Phoenix timestamps: {phoenix_ok}', 
+                                  {'guardrail_count': len(guardrails_data), 'phoenix_timestamps': phoenix_ok}, duration)
+                else:
+                    self.log_result('guardrails_list', False, 'Guardrails endpoint returned non-array', guardrails_data, duration)
+                    return
+            except Exception as e:
+                self.log_result('guardrails_list', False, f'JSON parse error: {e}', None, duration)
+                return
+        else:
+            self.log_result('guardrails_list', False, 
+                          f'GET /api/guardrails failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+            return
+        
+        # Test POST /api/guardrails (create test guardrail)
+        test_guardrail = {
+            "type": "dm_etiquette",
+            "scope": "global",
+            "value": "No cold DMs without prior public interaction",
+            "notes": "Test guardrail for comprehensive testing - always engage publicly first",
+            "dm_etiquette": "Always engage publicly first before sending DMs"
+        }
+        
+        success, response, duration = self.make_request('POST', '/guardrails', test_guardrail)
+        if success and response.status_code == 200:
+            try:
+                created_guardrail = response.json()
+                guardrail_id = created_guardrail.get('id')
+                if guardrail_id:
+                    self.test_data['guardrail_id'] = guardrail_id
+                    phoenix_ok = self.verify_phoenix_timestamps(created_guardrail)
+                    self.log_result('guardrails_create', True, 
+                                  f'Guardrail created successfully: {guardrail_id}, Phoenix timestamps: {phoenix_ok}', 
+                                  created_guardrail, duration)
+                else:
+                    self.log_result('guardrails_create', False, 'Created guardrail missing ID', created_guardrail, duration)
+            except Exception as e:
+                self.log_result('guardrails_create', False, f'JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('guardrails_create', False, 
+                          f'POST /api/guardrails failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+
+    def test_missions(self):
+        """Test Missions endpoints"""
+        print("\n=== TESTING MISSIONS ===")
+        
+        # Test GET /api/missions
+        success, response, duration = self.make_request('GET', '/missions')
+        if success and response.status_code == 200:
+            try:
+                missions_data = response.json()
+                if isinstance(missions_data, list):
+                    phoenix_ok = self.verify_phoenix_timestamps(missions_data)
+                    self.log_result('missions_list', True, 
+                                  f'Missions list working, {len(missions_data)} missions, Phoenix timestamps: {phoenix_ok}', 
+                                  {'mission_count': len(missions_data), 'phoenix_timestamps': phoenix_ok}, duration)
+                    
+                    # Store missions for later tests
+                    self.test_data['missions'] = missions_data
+                else:
+                    self.log_result('missions_list', False, 'Missions endpoint returned non-array', missions_data, duration)
+                    return
+            except Exception as e:
+                self.log_result('missions_list', False, f'JSON parse error: {e}', None, duration)
+                return
+        else:
+            self.log_result('missions_list', False, 
+                          f'GET /api/missions failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+            return
+        
+        # Test POST /api/missions (create test mission)
+        test_mission = {
+            "title": "Comprehensive Backend Test Mission",
+            "objective": "Test mission creation and agent integration for comprehensive backend testing",
+            "posture": "research_only",
+            "state": "draft",
+            "agents_assigned": ["Legatus"],
+            "insights": ["This is a test mission for comprehensive backend testing", "Testing insights migration to insights_rich"]
+        }
+        
+        success, response, duration = self.make_request('POST', '/missions', test_mission)
+        if success and response.status_code == 200:
+            try:
+                created_mission = response.json()
+                mission_id = created_mission.get('id')
+                if mission_id:
+                    self.test_data['mission_id'] = mission_id
+                    phoenix_ok = self.verify_phoenix_timestamps(created_mission)
+                    
+                    # Check if insights_rich was auto-populated
+                    insights_rich = created_mission.get('insights_rich', [])
+                    insights_migration_ok = len(insights_rich) > 0 and isinstance(insights_rich[0], dict)
+                    
+                    self.log_result('missions_create', True, 
+                                  f'Mission created successfully: {mission_id}, insights migration: {insights_migration_ok}, Phoenix timestamps: {phoenix_ok}', 
+                                  created_mission, duration)
+                else:
+                    self.log_result('missions_create', False, 'Created mission missing ID', created_mission, duration)
+            except Exception as e:
+                self.log_result('missions_create', False, f'JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('missions_create', False, 
+                          f'POST /api/missions failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+
+    def test_mission_control(self):
+        """Test Mission Control endpoints"""
+        print("\n=== TESTING MISSION CONTROL ===")
+        
+        # Test GET /api/mission_control/threads
+        success, response, duration = self.make_request('GET', '/mission_control/threads')
+        if success and response.status_code == 200:
+            try:
+                threads_data = response.json()
+                if isinstance(threads_data, list):
+                    phoenix_ok = self.verify_phoenix_timestamps(threads_data)
+                    self.log_result('mission_control_threads', True, 
+                                  f'Mission Control threads working, {len(threads_data)} threads, Phoenix timestamps: {phoenix_ok}', 
+                                  {'thread_count': len(threads_data), 'phoenix_timestamps': phoenix_ok}, duration)
+                else:
+                    self.log_result('mission_control_threads', False, 'Threads endpoint returned non-array', threads_data, duration)
+                    return
+            except Exception as e:
+                self.log_result('mission_control_threads', False, f'JSON parse error: {e}', None, duration)
+                return
+        else:
+            self.log_result('mission_control_threads', False, 
+                          f'GET /api/mission_control/threads failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+            return
+        
+        # Test POST /api/mission_control/threads (create test thread)
+        test_thread = {
+            "title": "Comprehensive Backend Test Thread",
+            "mission_id": self.test_data.get('mission_id')
+        }
+        
+        success, response, duration = self.make_request('POST', '/mission_control/threads', test_thread)
+        if success and response.status_code == 200:
+            try:
+                created_thread = response.json()
+                thread_id = created_thread.get('thread_id')
+                if thread_id:
+                    self.test_data['thread_id'] = thread_id
+                    self.log_result('mission_control_create_thread', True, 
+                                  f'Thread created successfully: {thread_id}', 
+                                  created_thread, duration)
+                    
+                    # Test sending a message to Praefectus
+                    test_message = {
+                        "thread_id": thread_id,
+                        "text": "Hello Praefectus, this is a comprehensive backend test. Please confirm you can respond to messages in Mission Control."
+                    }
+                    
+                    success, response, duration = self.make_request('POST', '/mission_control/message', test_message)
+                    if success and response.status_code == 200:
+                        try:
+                            message_response = response.json()
+                            assistant_text = message_response.get('assistant', {}).get('text', '')
+                            if assistant_text:
+                                self.log_result('mission_control_chat', True, 
+                                              f'Praefectus responded: {len(assistant_text)} chars', 
+                                              message_response, duration)
+                            else:
+                                self.log_result('mission_control_chat', False, 
+                                              'Praefectus did not respond', 
+                                              message_response, duration)
+                        except Exception as e:
+                            self.log_result('mission_control_chat', False, f'JSON parse error: {e}', None, duration)
+                    else:
+                        self.log_result('mission_control_chat', False, 
+                                      f'Message sending failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                                      None, duration)
+                else:
+                    self.log_result('mission_control_create_thread', False, 'Created thread missing thread_id', created_thread, duration)
+            except Exception as e:
+                self.log_result('mission_control_create_thread', False, f'JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('mission_control_create_thread', False, 
+                          f'POST /api/mission_control/threads failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+
+    def test_events_endpoint(self):
+        """Test Events endpoint"""
+        print("\n=== TESTING EVENTS ===")
+        
+        # Test GET /api/events
+        success, response, duration = self.make_request('GET', '/events')
+        if success and response.status_code == 200:
+            try:
+                events_data = response.json()
+                if isinstance(events_data, list):
+                    phoenix_ok = self.verify_phoenix_timestamps(events_data)
+                    self.log_result('events_list', True, 
+                                  f'Events list working, {len(events_data)} events, Phoenix timestamps: {phoenix_ok}', 
+                                  {'event_count': len(events_data), 'phoenix_timestamps': phoenix_ok}, duration)
+                else:
+                    self.log_result('events_list', False, 'Events endpoint returned non-array', events_data, duration)
+            except Exception as e:
+                self.log_result('events_list', False, f'JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('events_list', False, 
+                          f'GET /api/events failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+
+    def test_findings_endpoints(self):
+        """Test Findings endpoints"""
+        print("\n=== TESTING FINDINGS ===")
+        
+        # Test GET /api/findings
+        success, response, duration = self.make_request('GET', '/findings')
+        if success and response.status_code == 200:
+            try:
+                findings_data = response.json()
+                if isinstance(findings_data, list):
+                    phoenix_ok = self.verify_phoenix_timestamps(findings_data)
+                    self.log_result('findings_list', True, 
+                                  f'Findings list working, {len(findings_data)} findings, Phoenix timestamps: {phoenix_ok}', 
+                                  {'finding_count': len(findings_data), 'phoenix_timestamps': phoenix_ok}, duration)
+                else:
+                    self.log_result('findings_list', False, 'Findings endpoint returned non-array', findings_data, duration)
+            except Exception as e:
+                self.log_result('findings_list', False, f'JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('findings_list', False, 
+                          f'GET /api/findings failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+
+    def test_forums_endpoints(self):
+        """Test Forums endpoints"""
+        print("\n=== TESTING FORUMS ===")
+        
+        # Test GET /api/forums
+        success, response, duration = self.make_request('GET', '/forums')
+        if success and response.status_code == 200:
+            try:
+                forums_data = response.json()
+                if isinstance(forums_data, list):
+                    phoenix_ok = self.verify_phoenix_timestamps(forums_data)
+                    self.log_result('forums_list', True, 
+                                  f'Forums list working, {len(forums_data)} forums, Phoenix timestamps: {phoenix_ok}', 
+                                  {'forum_count': len(forums_data), 'phoenix_timestamps': phoenix_ok}, duration)
+                else:
+                    self.log_result('forums_list', False, 'Forums endpoint returned non-array', forums_data, duration)
+            except Exception as e:
+                self.log_result('forums_list', False, f'JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('forums_list', False, 
+                          f'GET /api/forums failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+
+    def run_comprehensive_test(self):
+        """Run all comprehensive backend tests"""
+        print(f"Starting Comprehensive Backend Testing - Base URL: {API_BASE}")
         print("=" * 100)
         
         start_time = time.time()
         
-        # Execute the 6-step flow
-        flow_success = self.execute_mission_control_flow()
+        # Run all test suites
+        self.test_health_endpoints()
+        self.test_agents_system()
+        self.test_prospects_rolodex()
+        self.test_hotleads()
+        self.test_guardrails()
+        self.test_missions()
+        self.test_mission_control()
+        self.test_events_endpoint()
+        self.test_findings_endpoints()
+        self.test_forums_endpoints()
         
         total_duration = time.time() - start_time
         
-        # Generate concise report
-        if flow_success:
-            self.generate_concise_report()
-        
         # Summary
         print("\n" + "=" * 100)
-        print("TEST EXECUTION SUMMARY")
+        print("COMPREHENSIVE TEST EXECUTION SUMMARY")
         print("=" * 100)
         
         passed = sum(1 for r in self.results if r['success'])
@@ -326,8 +616,8 @@ class MissionControlTester:
         print(f"Total Tests: {len(self.results)}")
         print(f"Passed: {passed}")
         print(f"Failed: {failed}")
+        print(f"Success Rate: {(passed/len(self.results)*100):.1f}%")
         print(f"Total Duration: {total_duration:.2f}s")
-        print(f"Flow Success: {'✅ YES' if flow_success else '❌ NO'}")
         
         if failed > 0:
             print("\nFAILED TESTS:")
@@ -340,8 +630,16 @@ class MissionControlTester:
         phoenix_passed = sum(1 for r in phoenix_tests if r.get('response_data', {}).get('phoenix_timestamps', False))
         print(f"\nPHOENIX TIMESTAMPS: {phoenix_passed}/{len(phoenix_tests)} endpoints verified with Phoenix timezone (-07:00)")
         
-        return self.results, self.payloads, flow_success
+        # Test data summary
+        print(f"\nTEST DATA CREATED:")
+        for key, value in self.test_data.items():
+            if isinstance(value, str):
+                print(f"- {key}: {value}")
+            elif isinstance(value, list):
+                print(f"- {key}: {len(value)} items")
+        
+        return self.results, passed, failed
 
 if __name__ == "__main__":
-    tester = MissionControlTester()
-    results, payloads, success = tester.run_mission_control_test()
+    tester = ComprehensiveBackendTester()
+    results, passed, failed = tester.run_comprehensive_test()
