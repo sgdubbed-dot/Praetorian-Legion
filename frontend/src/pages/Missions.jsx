@@ -39,7 +39,7 @@ export default function Missions() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-3">Operations</h2>
+      <h2 className="text-lg font-semibold mb-3">Campaigns</h2>
       <div className="bg-white rounded shadow p-3 mb-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
           <input className="border rounded px-2 py-1" placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
