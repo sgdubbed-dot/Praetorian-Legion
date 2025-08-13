@@ -774,26 +774,31 @@ async def scenario_agent_error(payload: Dict[str, Any]):
     from datetime import datetime, timedelta
     retry_time = datetime.now(PHOENIX_TZ) + timedelta(minutes=minutes)
     
-    await update_by_id(COLL_AGENTS, "Explorator", {
-        "status_light": "red",
-        "error_state": "crawl_timeout", 
-        "next_retry_at": retry_time.isoformat()
-    })
-    
-    # Create agent if it doesn't exist
+    # Find Explorator agent first
     existing = await COLL_AGENTS.find_one({"agent_name": "Explorator"})
-    if not existing:
+    
+    if existing:
+        # Update existing agent
+        await update_by_id(COLL_AGENTS, existing["_id"], {
+            "status_light": "red",
+            "error_state": "crawl_timeout", 
+            "next_retry_at": retry_time.isoformat()
+        })
+        agent_data = await get_by_id(COLL_AGENTS, existing["_id"])
+    else:
+        # Create agent if it doesn't exist  
         agent = Agent(
             agent_name="Explorator",
             status_light="red",
             error_state="crawl_timeout",
             next_retry_at=retry_time.isoformat()
         )
-        await insert_with_id(COLL_AGENTS, agent.model_dump())
+        agent_doc = await insert_with_id(COLL_AGENTS, agent.model_dump())
+        agent_data = agent_doc
     
     await log_event("agent_error_detected", "backend/scenarios", {"agent_name": "Explorator", "minutes": minutes})
     
-    return {"agent": await get_by_id(COLL_AGENTS, "Explorator") or {"agent_name": "Explorator", "status_light": "red", "error_state": "crawl_timeout", "next_retry_at": retry_time.isoformat()}}
+    return {"agent": agent_data}
 
 # Prospects (Rolodex) endpoints  
 class Prospect(BaseModel):
