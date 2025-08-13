@@ -14,7 +14,7 @@ Backend (.env in /app/backend)
 
 Frontend (.env in /app/frontend)
 - REACT_APP_BACKEND_URL: external URL used by frontend to call backend
-  - Example: https://3afd5048-b1fe-4fd7-b71e-338e9cf21c47.preview.emergentagent.com
+  - Example: https://progress-pulse-21.preview.emergentagent.com
 
 Notes
 - Never hardcode URLs in code. Frontend must use REACT_APP_BACKEND_URL; backend must use MONGO_URL and DB_NAME.
