@@ -687,6 +687,17 @@ async def forum_check_link(forum_id: str):
     await update_by_id(COLL_FORUMS, forum_id, {"link_status": status, "last_checked_at": now_iso()})
     return await get_by_id(COLL_FORUMS, forum_id)
 
+# Basic health endpoints
+@api.get("/health")
+async def health():
+    """Health check endpoint"""
+    return {"ok": True, "timestamp": now_iso()}
+
+@api.get("/")
+async def root():
+    """Root API endpoint"""
+    return {"message": "API ready", "timestamp": now_iso()}
+
 # Providers router
 from providers.routes import router as provider_router
 app.include_router(provider_router)
