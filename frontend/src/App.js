@@ -27,6 +27,13 @@ function AppShell() {
   return (
     <div className="p-4 space-y-4">
       <BrowserRouter>
+        {/* Brand Header */}
+        <div className="bg-white rounded shadow p-4 text-center">
+          <h1 className="text-2xl font-bold text-neutral-800">Augustus</h1>
+          <p className="text-sm italic text-neutral-600 mt-1">Praetoria Machina Prudentia Negotiorum Magister</p>
+        </div>
+        
+        {/* Navigation */}
         <div className="flex items-center gap-2 bg-white rounded shadow p-2">
           <NavLink to="/">Mission Control</NavLink>
           <NavLink to="/missions">Missions</NavLink>
