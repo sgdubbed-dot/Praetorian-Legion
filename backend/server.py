@@ -137,7 +137,7 @@ class Operation(BaseModel):
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
-class MissionCreate(BaseModel):
+class OperationCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str
     objective: str
