@@ -13,7 +13,7 @@ export default function MissionDetail() {
   const [editingText, setEditingText] = useState("");
 
   const refresh = async () => {
-    const d = (await api.get(`/missions/${id}`)).data;
+    const d = (await api.get(`/operations/${id}`)).data;
     setM(d);
     const ev = (await api.get(`/events`, { params: { mission_id: id, limit: 50 } })).data;
     setEvents(ev);
@@ -34,11 +34,11 @@ export default function MissionDetail() {
   const override = async (action) => {
     if (!m) return;
     if (action === "resume") {
-      await api.post(`/missions/${id}/state`, { state: "resume" });
+      await api.post(`/operations/${id}/state`, { state: "resume" });
     } else if (action === "pause") {
-      await api.post(`/missions/${id}/state`, { state: "paused" });
+      await api.post(`/operations/${id}/state`, { state: "paused" });
     } else if (action === "abort") {
-      await api.post(`/missions/${id}/state`, { state: "abort" });
+      await api.post(`/operations/${id}/state`, { state: "abort" });
     }
     await refresh();
   };
@@ -53,8 +53,8 @@ export default function MissionDetail() {
       agents_assigned: m.agents_assigned || [],
       insights: (m.insights || []),
     };
-    await api.post("/missions", payload);
-    navigate("/missions");
+    await api.post("/operations", payload);
+    navigate("/operations");
   };
 
   const plainSentence = (e) => {
@@ -74,14 +74,14 @@ export default function MissionDetail() {
   const addInsight = async () => {
     if (!newInsight.trim()) return;
     const next = [...insightsRich, { text: newInsight.trim(), timestamp: new Date().toISOString() }];
-    await api.patch(`/missions/${id}`, { insights_rich: next });
+    await api.patch(`/operations/${id}`, { insights_rich: next });
     setNewInsight("");
     await refresh();
   };
   const startEdit = (idx) => { setEditingIndex(idx); setEditingText(insightsRich[idx].text); };
   const saveEdit = async () => {
     const next = insightsRich.map((it, i) => i === editingIndex ? { ...it, text: editingText } : it);
-    await api.patch(`/missions/${id}`, { insights_rich: next });
+    await api.patch(`/operations/${id}`, { insights_rich: next });
     setEditingIndex(null); setEditingText("");
     await refresh();
   };
@@ -92,7 +92,7 @@ export default function MissionDetail() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <button onClick={() => navigate("/missions")} className="px-3 py-1 bg-neutral-200 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500">Back to Missions</button>
+        <button onClick={() => navigate("/operations")} className="px-3 py-1 bg-neutral-200 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500">Back to Missions</button>
       </div>
 
       <div className="bg-white rounded shadow p-4">
