@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Praetorian Legion - Comprehensive Testing After Major Fixes
-Focus: Test all critical endpoints including Agents, Prospects, HotLeads, Guardrails, Missions, Mission Control
+Backend API Testing for Augustus - Comprehensive Knowledge Integration Test
+Focus: Verify Praetoria knowledge integration in Praefectus system and knowledge endpoints
 """
 
 import requests
