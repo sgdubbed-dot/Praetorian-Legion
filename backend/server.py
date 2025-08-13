@@ -137,7 +137,7 @@ class Campaign(BaseModel):
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
-class OperationCreate(BaseModel):
+class CampaignCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str
     objective: str
@@ -504,7 +504,7 @@ async def mission_control_message(payload: MCChatInput):
     lowered = txt.lower().strip()
     # triggers
     if lowered in {"create mission now", "approve and create mission now", "create & start mission now"}:
-        created = await create_mission(OperationCreate(**{
+        created = await create_mission(CampaignCreate(**{
             "title": th.get("title", "New Mission"),
             "objective": "",
             "posture": "research_only",
@@ -545,7 +545,7 @@ async def mission_control_message(payload: MCChatInput):
             await update_by_id(COLL_THREADS, thread_id, {})
             return {"assistant": {"text": text, "created_at": assistant.created_at}}
         else:
-            created = await create_mission(OperationCreate(**{
+            created = await create_mission(CampaignCreate(**{
                 "title": th.get("title", "New Mission"),
                 "objective": "",
                 "posture": "research_only",
@@ -643,7 +643,7 @@ async def duplicate_run_internal(campaign_id: str, source_thread_id: str, start_
     if not base: raise HTTPException(status_code=404, detail="Mission not found")
     src_thread = await COLL_THREADS.find_one({"_id": source_thread_id})
     if not src_thread: raise HTTPException(status_code=404, detail="Source thread not found")
-    created = await create_mission(OperationCreate(**{
+    created = await create_mission(CampaignCreate(**{
         "title": base.get("title", src_thread.get("title", "New Mission")),
         "objective": base.get("objective", ""),
         "posture": base.get("posture", "research_only"),
