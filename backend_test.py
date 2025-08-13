@@ -18,7 +18,7 @@ load_dotenv('/app/frontend/.env')
 BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://progress-pulse-21.preview.emergentagent.com')
 API_BASE = f"{BACKEND_URL}/api"
 
-class AugustusKnowledgeIntegrationTester:
+class PraefectusContextBugTester:
     def __init__(self):
         self.results = []
         self.session = requests.Session()
@@ -62,35 +62,17 @@ class AugustusKnowledgeIntegrationTester:
             duration = time.time() - start_time
             return False, str(e), duration
 
-    def verify_phoenix_timestamps(self, data: Any, context: str = "") -> bool:
-        """Verify Phoenix timezone timestamps are present"""
-        if isinstance(data, dict):
-            for key, value in data.items():
-                if key in ['created_at', 'updated_at', 'timestamp', 'last_activity', 'next_retry_at'] and value:
-                    if '-07:00' in str(value):
-                        return True
-            # Check nested objects
-            for value in data.values():
-                if self.verify_phoenix_timestamps(value, context):
-                    return True
-        elif isinstance(data, list):
-            for item in data:
-                if self.verify_phoenix_timestamps(item, context):
-                    return True
-        return False
-
-    def test_health_endpoints(self):
-        """Test basic health endpoints"""
-        print("\n=== TESTING HEALTH ENDPOINTS ===")
+    def test_basic_health_check(self):
+        """Test basic health endpoints to ensure API is working"""
+        print("\n=== TESTING BASIC HEALTH CHECK ===")
         
         # Test GET /api/health
         success, response, duration = self.make_request('GET', '/health')
         if success and response.status_code == 200:
             try:
                 data = response.json()
-                phoenix_ok = self.verify_phoenix_timestamps(data)
                 self.log_result('health_endpoint', True, 
-                              f'Health endpoint working, Phoenix timestamps: {phoenix_ok}', 
+                              f'Health endpoint working: {data}', 
                               data, duration)
             except:
                 self.log_result('health_endpoint', False, 'Health endpoint returned invalid JSON', None, duration)
@@ -99,408 +81,390 @@ class AugustusKnowledgeIntegrationTester:
                           f'Health endpoint failed: {response.status_code if hasattr(response, "status_code") else response}', 
                           None, duration)
 
-    def test_knowledge_endpoint(self):
-        """Test Praetoria Knowledge Base endpoint - CRITICAL for Augustus integration"""
-        print("\n=== TESTING PRAETORIA KNOWLEDGE ENDPOINT ===")
+    def test_thread_creation_and_messaging(self):
+        """Test basic thread creation and messaging functionality"""
+        print("\n=== TESTING THREAD CREATION AND MESSAGING ===")
         
-        # Test GET /api/knowledge/praetoria
-        success, response, duration = self.make_request('GET', '/knowledge/praetoria')
-        if not success or response.status_code != 200:
-            self.log_result('knowledge_endpoint', False, 
-                          f'GET /api/knowledge/praetoria failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-            return
-        
-        try:
-            knowledge_data = response.json()
-            
-            # Verify comprehensive knowledge structure
-            required_keys = [
-                'company', 'mission', 'tagline', 'evolution_stages', 
-                'target_personas', 'competitive_advantages', 'market_problems', 
-                'business_model', 'north_star'
-            ]
-            
-            missing_keys = [key for key in required_keys if key not in knowledge_data]
-            if missing_keys:
-                self.log_result('knowledge_endpoint', False, 
-                              f'Missing required knowledge keys: {missing_keys}', 
-                              knowledge_data, duration)
-                return
-            
-            # Verify evolution stages structure
-            stages = knowledge_data.get('evolution_stages', {})
-            expected_stages = ['stage_1', 'stage_2', 'stage_3']
-            missing_stages = [stage for stage in expected_stages if stage not in stages]
-            if missing_stages:
-                self.log_result('knowledge_endpoint', False, 
-                              f'Missing evolution stages: {missing_stages}', 
-                              knowledge_data, duration)
-                return
-            
-            # Verify target personas structure
-            personas = knowledge_data.get('target_personas', [])
-            if not isinstance(personas, list) or len(personas) < 5:
-                self.log_result('knowledge_endpoint', False, 
-                              f'Target personas incomplete: expected 5+ personas, got {len(personas)}', 
-                              knowledge_data, duration)
-                return
-            
-            # Verify competitive advantages
-            advantages = knowledge_data.get('competitive_advantages', [])
-            if not isinstance(advantages, list) or len(advantages) < 4:
-                self.log_result('knowledge_endpoint', False, 
-                              f'Competitive advantages incomplete: expected 4+ advantages, got {len(advantages)}', 
-                              knowledge_data, duration)
-                return
-            
-            # Check for specific key knowledge elements
-            stage_1 = stages.get('stage_1', {})
-            if stage_1.get('status') != 'Live now':
-                self.log_result('knowledge_endpoint', False, 
-                              f'Stage 1 status incorrect: expected "Live now", got "{stage_1.get("status")}"', 
-                              knowledge_data, duration)
-                return
-            
-            # Verify framework-agnostic mention
-            framework_agnostic_found = any('framework-agnostic' in str(adv).lower() or 'langchain' in str(adv).lower() 
-                                         for adv in advantages)
-            if not framework_agnostic_found:
-                self.log_result('knowledge_endpoint', False, 
-                              'Framework-agnostic competitive advantage not found', 
-                              knowledge_data, duration)
-                return
-            
-            self.log_result('knowledge_endpoint', True, 
-                          f'Praetoria knowledge endpoint comprehensive: {len(required_keys)} sections, {len(personas)} personas, {len(advantages)} advantages', 
-                          {
-                              'sections': len(required_keys),
-                              'personas_count': len(personas),
-                              'advantages_count': len(advantages),
-                              'stages_count': len(stages),
-                              'company': knowledge_data.get('company'),
-                              'mission': knowledge_data.get('mission')[:100] + '...' if knowledge_data.get('mission') else None
-                          }, duration)
-            
-            # Store knowledge data for later tests
-            self.test_data['knowledge'] = knowledge_data
-            
-        except Exception as e:
-            self.log_result('knowledge_endpoint', False, f'JSON parse error: {e}', None, duration)
-
-    def test_praefectus_knowledge_integration(self):
-        """Test Praefectus Mission Control chat with knowledge integration"""
-        print("\n=== TESTING PRAEFECTUS KNOWLEDGE INTEGRATION ===")
-        
-        # First create a thread for testing
+        # Create a thread for testing
         test_thread = {
-            "title": "Augustus Knowledge Integration Test"
+            "title": "Operation Market Cartography"
         }
         
         success, response, duration = self.make_request('POST', '/mission_control/threads', test_thread)
         if not success or response.status_code != 200:
-            self.log_result('praefectus_thread_creation', False, 
+            self.log_result('thread_creation', False, 
                           f'Thread creation failed: {response.status_code if hasattr(response, "status_code") else response}', 
                           None, duration)
-            return
+            return None
         
         try:
             created_thread = response.json()
             thread_id = created_thread.get('thread_id')
             if not thread_id:
-                self.log_result('praefectus_thread_creation', False, 'Thread creation missing thread_id', created_thread, duration)
-                return
+                self.log_result('thread_creation', False, 'Thread creation missing thread_id', created_thread, duration)
+                return None
             
             self.test_data['thread_id'] = thread_id
-            self.log_result('praefectus_thread_creation', True, 
-                          f'Thread created for knowledge testing: {thread_id}', 
+            self.log_result('thread_creation', True, 
+                          f'Thread created successfully: {thread_id}', 
                           created_thread, duration)
             
+            return thread_id
+            
         except Exception as e:
-            self.log_result('praefectus_thread_creation', False, f'JSON parse error: {e}', None, duration)
-            return
-        
-        # Test knowledge integration with specific questions
-        knowledge_test_questions = [
-            {
-                "question": "What is Praetoria and what problem does it solve in the agent economy?",
-                "expected_keywords": ["praetoria", "agent economy", "visibility", "control", "monitoring", "observability"],
-                "test_name": "praetoria_overview_knowledge"
-            },
-            {
-                "question": "Explain Praetoria's 3-stage evolution roadmap and current status.",
-                "expected_keywords": ["stage 1", "stage 2", "stage 3", "observability", "registry", "control infrastructure", "live now"],
-                "test_name": "evolution_stages_knowledge"
-            },
-            {
-                "question": "Who are Praetoria's target personas and what pain points do we solve for developers?",
-                "expected_keywords": ["developers", "startups", "enterprises", "debugging", "observability", "trace", "monitoring"],
-                "test_name": "target_personas_knowledge"
-            },
-            {
-                "question": "What makes Praetoria different from competitors? What are our competitive advantages?",
-                "expected_keywords": ["framework-agnostic", "langchain", "crewai", "autogen", "agent-native", "privacy-by-design"],
-                "test_name": "competitive_advantages_knowledge"
-            },
-            {
-                "question": "How does Praetoria support different agent frameworks like LangChain, CrewAI, and AutoGen?",
-                "expected_keywords": ["framework-agnostic", "langchain", "crewai", "autogen", "langgraph", "on-chain"],
-                "test_name": "framework_support_knowledge"
-            }
-        ]
-        
-        for test_case in knowledge_test_questions:
-            print(f"\n--- Testing {test_case['test_name']} ---")
-            
-            test_message = {
-                "thread_id": thread_id,
-                "text": test_case["question"]
-            }
-            
-            success, response, duration = self.make_request('POST', '/mission_control/message', test_message)
-            if success and response.status_code == 200:
-                try:
-                    message_response = response.json()
-                    assistant_text = message_response.get('assistant', {}).get('text', '')
-                    
-                    if not assistant_text:
-                        self.log_result(test_case['test_name'], False, 
-                                      'Praefectus did not respond to knowledge question', 
-                                      message_response, duration)
-                        continue
-                    
-                    # Check for expected keywords in response
-                    assistant_lower = assistant_text.lower()
-                    found_keywords = [kw for kw in test_case['expected_keywords'] if kw.lower() in assistant_lower]
-                    missing_keywords = [kw for kw in test_case['expected_keywords'] if kw.lower() not in assistant_lower]
-                    
-                    # Consider test successful if at least 50% of keywords are found
-                    success_threshold = len(test_case['expected_keywords']) * 0.5
-                    knowledge_test_passed = len(found_keywords) >= success_threshold
-                    
-                    if knowledge_test_passed:
-                        self.log_result(test_case['test_name'], True, 
-                                      f'Praefectus demonstrated knowledge: {len(found_keywords)}/{len(test_case["expected_keywords"])} keywords found, {len(assistant_text)} chars', 
-                                      {
-                                          'response_length': len(assistant_text),
-                                          'found_keywords': found_keywords,
-                                          'response_preview': assistant_text[:200] + '...' if len(assistant_text) > 200 else assistant_text
-                                      }, duration)
-                    else:
-                        self.log_result(test_case['test_name'], False, 
-                                      f'Insufficient knowledge demonstrated: {len(found_keywords)}/{len(test_case["expected_keywords"])} keywords found. Missing: {missing_keywords}', 
-                                      {
-                                          'response_length': len(assistant_text),
-                                          'found_keywords': found_keywords,
-                                          'missing_keywords': missing_keywords,
-                                          'response_preview': assistant_text[:200] + '...' if len(assistant_text) > 200 else assistant_text
-                                      }, duration)
-                    
-                except Exception as e:
-                    self.log_result(test_case['test_name'], False, f'JSON parse error: {e}', None, duration)
-            else:
-                self.log_result(test_case['test_name'], False, 
-                              f'Message sending failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                              None, duration)
-            
-            # Small delay between questions to avoid rate limiting
-            time.sleep(1)
+            self.log_result('thread_creation', False, f'JSON parse error: {e}', None, duration)
+            return None
 
-    def test_mission_control_system_prompt_integration(self):
-        """Test that Praefectus system prompt includes comprehensive Praetoria knowledge"""
-        print("\n=== TESTING SYSTEM PROMPT INTEGRATION ===")
-        
-        thread_id = self.test_data.get('thread_id')
-        if not thread_id:
-            self.log_result('system_prompt_integration', False, 'No thread_id available for system prompt testing', None, 0)
-            return
-        
-        # Test with a meta question about Praefectus's role and knowledge
-        meta_question = {
+    def send_message_to_thread(self, thread_id: str, message_text: str, test_name: str) -> Optional[str]:
+        """Send a message to a thread and return the assistant's response"""
+        test_message = {
             "thread_id": thread_id,
-            "text": "As Praefectus, please describe your role in Augustus and your understanding of Praetoria's mission. What specific knowledge do you have about the agent economy?"
+            "text": message_text
         }
         
-        success, response, duration = self.make_request('POST', '/mission_control/message', meta_question)
+        success, response, duration = self.make_request('POST', '/mission_control/message', test_message)
         if success and response.status_code == 200:
             try:
                 message_response = response.json()
                 assistant_text = message_response.get('assistant', {}).get('text', '')
                 
                 if not assistant_text:
-                    self.log_result('system_prompt_integration', False, 
-                                  'Praefectus did not respond to meta question', 
+                    self.log_result(test_name, False, 
+                                  'Praefectus did not respond to message', 
                                   message_response, duration)
-                    return
+                    return None
                 
-                # Check for system prompt integration indicators
-                system_prompt_indicators = [
-                    "praefectus", "strategic ai commander", "augustus", "praetoria",
-                    "agent economy", "observability", "control layer", "mission control",
-                    "visibility", "monitoring", "autonomous ai agents"
-                ]
+                self.log_result(test_name, True, 
+                              f'Message sent and response received: {len(assistant_text)} chars', 
+                              {
+                                  'message_sent': message_text,
+                                  'response_length': len(assistant_text),
+                                  'response_preview': assistant_text[:200] + '...' if len(assistant_text) > 200 else assistant_text
+                              }, duration)
                 
-                assistant_lower = assistant_text.lower()
-                found_indicators = [ind for ind in system_prompt_indicators if ind.lower() in assistant_lower]
-                
-                # Check for role understanding
-                role_understanding = any(phrase in assistant_lower for phrase in [
-                    "strategic", "commander", "orchestrate", "intelligence", "operations"
-                ])
-                
-                # Check for Praetoria mission understanding
-                mission_understanding = any(phrase in assistant_lower for phrase in [
-                    "visibility", "control layer", "agent economy", "monitoring", "observability"
-                ])
-                
-                integration_score = len(found_indicators)
-                integration_passed = integration_score >= 6 and role_understanding and mission_understanding
-                
-                if integration_passed:
-                    self.log_result('system_prompt_integration', True, 
-                                  f'System prompt integration verified: {integration_score} indicators, role & mission understanding confirmed', 
-                                  {
-                                      'integration_score': integration_score,
-                                      'found_indicators': found_indicators,
-                                      'role_understanding': role_understanding,
-                                      'mission_understanding': mission_understanding,
-                                      'response_length': len(assistant_text),
-                                      'response_preview': assistant_text[:300] + '...' if len(assistant_text) > 300 else assistant_text
-                                  }, duration)
-                else:
-                    self.log_result('system_prompt_integration', False, 
-                                  f'System prompt integration insufficient: {integration_score} indicators, role: {role_understanding}, mission: {mission_understanding}', 
-                                  {
-                                      'integration_score': integration_score,
-                                      'found_indicators': found_indicators,
-                                      'role_understanding': role_understanding,
-                                      'mission_understanding': mission_understanding,
-                                      'response_length': len(assistant_text),
-                                      'response_preview': assistant_text[:300] + '...' if len(assistant_text) > 300 else assistant_text
-                                  }, duration)
+                return assistant_text
                 
             except Exception as e:
-                self.log_result('system_prompt_integration', False, f'JSON parse error: {e}', None, duration)
+                self.log_result(test_name, False, f'JSON parse error: {e}', None, duration)
+                return None
         else:
-            self.log_result('system_prompt_integration', False, 
-                          f'Meta question failed: {response.status_code if hasattr(response, "status_code") else response}', 
+            self.log_result(test_name, False, 
+                          f'Message sending failed: {response.status_code if hasattr(response, "status_code") else response}', 
                           None, duration)
+            return None
 
-    def test_agent_economy_expertise(self):
-        """Test Praefectus expertise on agent economy challenges and solutions"""
-        print("\n=== TESTING AGENT ECONOMY EXPERTISE ===")
+    def get_thread_messages(self, thread_id: str) -> Optional[List[Dict]]:
+        """Get all messages from a thread"""
+        success, response, duration = self.make_request('GET', f'/mission_control/thread/{thread_id}')
+        if success and response.status_code == 200:
+            try:
+                thread_data = response.json()
+                messages = thread_data.get('messages', [])
+                return messages
+            except Exception as e:
+                print(f"Error getting thread messages: {e}")
+                return None
+        else:
+            print(f"Failed to get thread messages: {response.status_code if hasattr(response, 'status_code') else response}")
+            return None
+
+    def test_critical_context_bug(self):
+        """Test the CRITICAL CONTEXT BUG - Praefectus not reading conversation history"""
+        print("\n=== TESTING CRITICAL CONTEXT BUG ===")
+        print("REPRODUCING USER REPORTED BUG:")
+        print("1. Create thread 'Operation Market Cartography'")
+        print("2. Send message about identifying target market for Praetoria")
+        print("3. Ask 'Tell me about the operation we are building'")
+        print("4. Verify if Praefectus references previous conversation")
+        
+        # Step 1: Create thread
+        thread_id = self.test_thread_creation_and_messaging()
+        if not thread_id:
+            return
+        
+        # Step 2: Send initial message about market cartography
+        initial_message = "I need to identify our target market for Praetoria. Focus on GitHub repositories and Discord communities"
+        
+        print(f"\n--- Sending initial message ---")
+        print(f"Message: {initial_message}")
+        
+        initial_response = self.send_message_to_thread(
+            thread_id, 
+            initial_message, 
+            'initial_market_message'
+        )
+        
+        if not initial_response:
+            self.log_result('context_bug_test', False, 'Failed to send initial message', None, 0)
+            return
+        
+        # Check if initial response mentions Operation Market Cartography
+        initial_response_lower = initial_response.lower()
+        mentions_operation = any(phrase in initial_response_lower for phrase in [
+            'operation market cartography', 'market cartography', 'cartography'
+        ])
+        
+        print(f"Initial response mentions operation: {mentions_operation}")
+        print(f"Initial response preview: {initial_response[:300]}...")
+        
+        # Step 3: Wait a moment then ask about "the operation we are building"
+        time.sleep(2)
+        
+        context_test_message = "Tell me about the operation we are building"
+        
+        print(f"\n--- Testing context awareness ---")
+        print(f"Message: {context_test_message}")
+        
+        context_response = self.send_message_to_thread(
+            thread_id,
+            context_test_message,
+            'context_awareness_test'
+        )
+        
+        if not context_response:
+            self.log_result('context_bug_test', False, 'Failed to send context test message', None, 0)
+            return
+        
+        # Step 4: Analyze the context response for the bug
+        context_response_lower = context_response.lower()
+        
+        # Check for the specific bug indicators
+        bug_indicators = [
+            "we haven't actually defined any operation",
+            "haven't defined any operation yet",
+            "no operation defined",
+            "haven't discussed any operation"
+        ]
+        
+        shows_bug = any(indicator in context_response_lower for indicator in bug_indicators)
+        
+        # Check for proper context awareness
+        context_indicators = [
+            'operation market cartography',
+            'market cartography', 
+            'cartography',
+            'target market',
+            'praetoria',
+            'github repositories',
+            'discord communities',
+            'discussed above',
+            'conversation above',
+            'based on our discussion'
+        ]
+        
+        shows_context_awareness = any(indicator in context_response_lower for indicator in context_indicators)
+        
+        # Get thread messages to verify conversation history exists
+        messages = self.get_thread_messages(thread_id)
+        message_count = len(messages) if messages else 0
+        
+        print(f"\n--- CONTEXT BUG ANALYSIS ---")
+        print(f"Thread has {message_count} messages")
+        print(f"Shows bug indicators: {shows_bug}")
+        print(f"Shows context awareness: {shows_context_awareness}")
+        print(f"Context response preview: {context_response[:400]}...")
+        
+        # Determine if the bug exists
+        if shows_bug and not shows_context_awareness:
+            self.log_result('context_bug_verification', False, 
+                          'CRITICAL CONTEXT BUG CONFIRMED: Praefectus does not read conversation history within threads', 
+                          {
+                              'thread_id': thread_id,
+                              'message_count': message_count,
+                              'shows_bug_indicators': shows_bug,
+                              'shows_context_awareness': shows_context_awareness,
+                              'bug_indicators_found': [ind for ind in bug_indicators if ind in context_response_lower],
+                              'context_indicators_found': [ind for ind in context_indicators if ind in context_response_lower],
+                              'initial_response_preview': initial_response[:200] + '...' if len(initial_response) > 200 else initial_response,
+                              'context_response_preview': context_response[:200] + '...' if len(context_response) > 200 else context_response
+                          }, 0)
+        elif shows_context_awareness and not shows_bug:
+            self.log_result('context_bug_verification', True, 
+                          'Context bug appears to be FIXED: Praefectus demonstrates conversation awareness', 
+                          {
+                              'thread_id': thread_id,
+                              'message_count': message_count,
+                              'shows_bug_indicators': shows_bug,
+                              'shows_context_awareness': shows_context_awareness,
+                              'context_indicators_found': [ind for ind in context_indicators if ind in context_response_lower],
+                              'context_response_preview': context_response[:200] + '...' if len(context_response) > 200 else context_response
+                          }, 0)
+        else:
+            self.log_result('context_bug_verification', False, 
+                          'INCONCLUSIVE: Mixed signals in context awareness testing', 
+                          {
+                              'thread_id': thread_id,
+                              'message_count': message_count,
+                              'shows_bug_indicators': shows_bug,
+                              'shows_context_awareness': shows_context_awareness,
+                              'bug_indicators_found': [ind for ind in bug_indicators if ind in context_response_lower],
+                              'context_indicators_found': [ind for ind in context_indicators if ind in context_response_lower],
+                              'context_response_preview': context_response[:200] + '...' if len(context_response) > 200 else context_response
+                          }, 0)
+
+    def test_conversation_persistence_within_thread(self):
+        """Test if Praefectus can reference multiple previous messages in the same thread"""
+        print("\n=== TESTING CONVERSATION PERSISTENCE WITHIN THREAD ===")
         
         thread_id = self.test_data.get('thread_id')
         if not thread_id:
-            self.log_result('agent_economy_expertise', False, 'No thread_id available for expertise testing', None, 0)
-            return
+            # Create a new thread for this test
+            test_thread = {"title": "Context Persistence Test"}
+            success, response, duration = self.make_request('POST', '/mission_control/threads', test_thread)
+            if success and response.status_code == 200:
+                thread_id = response.json().get('thread_id')
+                self.test_data['persistence_thread_id'] = thread_id
+            else:
+                self.log_result('conversation_persistence', False, 'Failed to create thread for persistence test', None, 0)
+                return
         
-        # Test with complex agent economy scenarios
-        expertise_questions = [
-            {
-                "question": "A startup has deployed 50 AI agents across different frameworks but can't debug when they fail. How does Praetoria solve this?",
-                "expected_concepts": ["trace logs", "debugging", "observability", "framework-agnostic", "forensics", "root-cause"],
-                "test_name": "debugging_expertise"
-            },
-            {
-                "question": "An enterprise needs governance and compliance for their agent fleet. What does Praetoria offer for Stage 2 and 3?",
-                "expected_concepts": ["governance", "compliance", "audit logs", "registry", "identity", "policy enforcement"],
-                "test_name": "governance_expertise"
-            },
-            {
-                "question": "How does Praetoria address the challenge of agent identity and reputation in a multi-vendor environment?",
-                "expected_concepts": ["agent identity", "reputation", "registry", "verification", "praetoria agent id", "paid"],
-                "test_name": "identity_expertise"
-            }
+        # Send a series of messages building context
+        messages_sequence = [
+            "Our mission is to build a stealth intelligence operation called Operation Shadow Network.",
+            "The primary target is enterprise security teams who need agent monitoring solutions.",
+            "We'll focus on three key platforms: GitHub for developer outreach, LinkedIn for enterprise contacts, and Discord for community building.",
+            "The timeline is 6 weeks with weekly progress reviews."
         ]
         
-        for test_case in expertise_questions:
-            print(f"\n--- Testing {test_case['test_name']} ---")
-            
-            test_message = {
-                "thread_id": thread_id,
-                "text": test_case["question"]
-            }
-            
-            success, response, duration = self.make_request('POST', '/mission_control/message', test_message)
-            if success and response.status_code == 200:
-                try:
-                    message_response = response.json()
-                    assistant_text = message_response.get('assistant', {}).get('text', '')
-                    
-                    if not assistant_text:
-                        self.log_result(test_case['test_name'], False, 
-                                      'Praefectus did not respond to expertise question', 
-                                      message_response, duration)
-                        continue
-                    
-                    # Check for expected concepts and expertise depth
-                    assistant_lower = assistant_text.lower()
-                    found_concepts = [concept for concept in test_case['expected_concepts'] if concept.lower() in assistant_lower]
-                    
-                    # Check for solution-oriented response (not just generic AI talk)
-                    solution_indicators = ["praetoria", "stage", "mission control", "trace", "registry", "control infrastructure"]
-                    solution_mentions = [ind for ind in solution_indicators if ind.lower() in assistant_lower]
-                    
-                    # Expertise criteria: good concept coverage + solution focus + sufficient detail
-                    concept_coverage = len(found_concepts) / len(test_case['expected_concepts'])
-                    has_solution_focus = len(solution_mentions) >= 2
-                    sufficient_detail = len(assistant_text) >= 150  # Detailed response expected
-                    
-                    expertise_demonstrated = concept_coverage >= 0.4 and has_solution_focus and sufficient_detail
-                    
-                    if expertise_demonstrated:
-                        self.log_result(test_case['test_name'], True, 
-                                      f'Agent economy expertise demonstrated: {len(found_concepts)}/{len(test_case["expected_concepts"])} concepts, solution-focused, {len(assistant_text)} chars', 
-                                      {
-                                          'concept_coverage': f"{len(found_concepts)}/{len(test_case['expected_concepts'])}",
-                                          'found_concepts': found_concepts,
-                                          'solution_mentions': solution_mentions,
-                                          'response_length': len(assistant_text),
-                                          'response_preview': assistant_text[:250] + '...' if len(assistant_text) > 250 else assistant_text
-                                      }, duration)
-                    else:
-                        self.log_result(test_case['test_name'], False, 
-                                      f'Insufficient expertise: {len(found_concepts)}/{len(test_case["expected_concepts"])} concepts, solution focus: {has_solution_focus}, detail: {sufficient_detail}', 
-                                      {
-                                          'concept_coverage': f"{len(found_concepts)}/{len(test_case['expected_concepts'])}",
-                                          'found_concepts': found_concepts,
-                                          'solution_mentions': solution_mentions,
-                                          'response_length': len(assistant_text),
-                                          'response_preview': assistant_text[:250] + '...' if len(assistant_text) > 250 else assistant_text
-                                      }, duration)
-                    
-                except Exception as e:
-                    self.log_result(test_case['test_name'], False, f'JSON parse error: {e}', None, duration)
-            else:
-                self.log_result(test_case['test_name'], False, 
-                              f'Expertise question failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                              None, duration)
-            
-            # Small delay between questions
-            time.sleep(1)
+        # Send each message and get responses
+        for i, message in enumerate(messages_sequence):
+            print(f"\n--- Sending context message {i+1} ---")
+            response = self.send_message_to_thread(
+                thread_id,
+                message,
+                f'context_building_message_{i+1}'
+            )
+            if not response:
+                self.log_result('conversation_persistence', False, f'Failed to send context message {i+1}', None, 0)
+                return
+            time.sleep(1)  # Small delay between messages
+        
+        # Now test if Praefectus can summarize the entire conversation
+        summary_request = "Please summarize everything we've discussed about our operation, including the name, targets, platforms, and timeline."
+        
+        print(f"\n--- Testing conversation summary ---")
+        summary_response = self.send_message_to_thread(
+            thread_id,
+            summary_request,
+            'conversation_summary_test'
+        )
+        
+        if not summary_response:
+            self.log_result('conversation_persistence', False, 'Failed to get conversation summary', None, 0)
+            return
+        
+        # Check if the summary includes elements from all previous messages
+        summary_lower = summary_response.lower()
+        
+        expected_elements = [
+            'operation shadow network',  # From message 1
+            'enterprise security',       # From message 2  
+            'github',                   # From message 3
+            'linkedin',                 # From message 3
+            'discord',                  # From message 3
+            '6 weeks',                  # From message 4
+            'weekly'                    # From message 4
+        ]
+        
+        found_elements = [elem for elem in expected_elements if elem in summary_lower]
+        missing_elements = [elem for elem in expected_elements if elem not in summary_lower]
+        
+        # Get thread messages to verify conversation history
+        messages = self.get_thread_messages(thread_id)
+        message_count = len(messages) if messages else 0
+        
+        persistence_score = len(found_elements) / len(expected_elements)
+        persistence_working = persistence_score >= 0.6  # At least 60% of elements should be found
+        
+        print(f"\n--- CONVERSATION PERSISTENCE ANALYSIS ---")
+        print(f"Thread has {message_count} messages")
+        print(f"Found {len(found_elements)}/{len(expected_elements)} expected elements")
+        print(f"Persistence score: {persistence_score:.2f}")
+        print(f"Missing elements: {missing_elements}")
+        print(f"Summary preview: {summary_response[:300]}...")
+        
+        if persistence_working:
+            self.log_result('conversation_persistence', True, 
+                          f'Conversation persistence WORKING: {len(found_elements)}/{len(expected_elements)} elements found in summary', 
+                          {
+                              'thread_id': thread_id,
+                              'message_count': message_count,
+                              'persistence_score': persistence_score,
+                              'found_elements': found_elements,
+                              'missing_elements': missing_elements,
+                              'summary_preview': summary_response[:300] + '...' if len(summary_response) > 300 else summary_response
+                          }, 0)
+        else:
+            self.log_result('conversation_persistence', False, 
+                          f'Conversation persistence BROKEN: Only {len(found_elements)}/{len(expected_elements)} elements found in summary', 
+                          {
+                              'thread_id': thread_id,
+                              'message_count': message_count,
+                              'persistence_score': persistence_score,
+                              'found_elements': found_elements,
+                              'missing_elements': missing_elements,
+                              'summary_preview': summary_response[:300] + '...' if len(summary_response) > 300 else summary_response
+                          }, 0)
 
-    def run_augustus_knowledge_integration_test(self):
-        """Run comprehensive Augustus knowledge integration test"""
-        print(f"Starting Augustus Knowledge Integration Testing - Base URL: {API_BASE}")
+    def test_terminology_changes_verification(self):
+        """Verify that the Mission→Operation terminology changes are working"""
+        print("\n=== TESTING TERMINOLOGY CHANGES VERIFICATION ===")
+        
+        # Test operations endpoint (should work with new terminology)
+        success, response, duration = self.make_request('GET', '/operations')
+        if success and response.status_code == 200:
+            self.log_result('operations_endpoint', True, 
+                          'Operations endpoint working (terminology change successful)', 
+                          {'endpoint': '/api/operations'}, duration)
+        else:
+            self.log_result('operations_endpoint', False, 
+                          f'Operations endpoint failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+        
+        # Test creating an operation
+        test_operation = {
+            "title": "Test Operation for Terminology Verification",
+            "objective": "Verify that operation creation works with new terminology",
+            "posture": "research_only"
+        }
+        
+        success, response, duration = self.make_request('POST', '/operations', test_operation)
+        if success and response.status_code == 200:
+            try:
+                created_operation = response.json()
+                operation_id = created_operation.get('id')
+                self.test_data['test_operation_id'] = operation_id
+                self.log_result('operation_creation', True, 
+                              f'Operation creation successful: {operation_id}', 
+                              created_operation, duration)
+            except Exception as e:
+                self.log_result('operation_creation', False, f'JSON parse error: {e}', None, duration)
+        else:
+            self.log_result('operation_creation', False, 
+                          f'Operation creation failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+
+    def run_context_bug_verification_test(self):
+        """Run comprehensive context bug verification test"""
+        print(f"Starting Praefectus Context Bug Verification - Base URL: {API_BASE}")
         print("=" * 100)
-        print("FOCUS: Verify Praetoria knowledge integration in Praefectus system and knowledge endpoints")
+        print("CRITICAL BUG VERIFICATION: Praefectus conversation context management")
+        print("USER REPORTED: Praefectus doesn't read conversation history within threads")
         print("=" * 100)
         
         start_time = time.time()
         
-        # Run knowledge integration test suites
-        self.test_health_endpoints()
-        self.test_knowledge_endpoint()
-        self.test_praefectus_knowledge_integration()
-        self.test_mission_control_system_prompt_integration()
-        self.test_agent_economy_expertise()
+        # Run test suites in order
+        self.test_basic_health_check()
+        self.test_terminology_changes_verification()
+        self.test_critical_context_bug()
+        self.test_conversation_persistence_within_thread()
         
         total_duration = time.time() - start_time
         
         # Summary
         print("\n" + "=" * 100)
-        print("AUGUSTUS KNOWLEDGE INTEGRATION TEST SUMMARY")
+        print("PRAEFECTUS CONTEXT BUG VERIFICATION SUMMARY")
         print("=" * 100)
         
         passed = sum(1 for r in self.results if r['success'])
@@ -513,13 +477,31 @@ class AugustusKnowledgeIntegrationTester:
         print(f"Total Duration: {total_duration:.2f}s")
         
         # Categorize results
-        knowledge_tests = [r for r in self.results if 'knowledge' in r['test']]
-        praefectus_tests = [r for r in self.results if 'praefectus' in r['test'] or 'system_prompt' in r['test']]
-        expertise_tests = [r for r in self.results if 'expertise' in r['test'] or any(x in r['test'] for x in ['debugging', 'governance', 'identity'])]
+        context_tests = [r for r in self.results if 'context' in r['test'] or 'persistence' in r['test']]
+        terminology_tests = [r for r in self.results if 'operation' in r['test'] or 'terminology' in r['test']]
         
-        print(f"\nKNOWLEDGE ENDPOINT TESTS: {sum(1 for r in knowledge_tests if r['success'])}/{len(knowledge_tests)} passed")
-        print(f"PRAEFECTUS INTEGRATION TESTS: {sum(1 for r in praefectus_tests if r['success'])}/{len(praefectus_tests)} passed")
-        print(f"AGENT ECONOMY EXPERTISE TESTS: {sum(1 for r in expertise_tests if r['success'])}/{len(expertise_tests)} passed")
+        print(f"\nCONTEXT BUG TESTS: {sum(1 for r in context_tests if r['success'])}/{len(context_tests)} passed")
+        print(f"TERMINOLOGY TESTS: {sum(1 for r in terminology_tests if r['success'])}/{len(terminology_tests)} passed")
+        
+        # Critical bug analysis
+        context_bug_test = next((r for r in self.results if r['test'] == 'context_bug_verification'), None)
+        persistence_test = next((r for r in self.results if r['test'] == 'conversation_persistence'), None)
+        
+        print(f"\n🔍 CRITICAL BUG STATUS:")
+        if context_bug_test:
+            if context_bug_test['success']:
+                print("✅ CONTEXT BUG APPEARS TO BE FIXED")
+                print("   Praefectus demonstrates conversation awareness within threads")
+            else:
+                print("❌ CONTEXT BUG CONFIRMED - STILL PRESENT")
+                print("   Praefectus does NOT read conversation history within threads")
+                print("   This matches the user's reported issue exactly")
+        
+        if persistence_test:
+            if persistence_test['success']:
+                print("✅ CONVERSATION PERSISTENCE WORKING")
+            else:
+                print("❌ CONVERSATION PERSISTENCE BROKEN")
         
         if failed > 0:
             print("\nFAILED TESTS:")
@@ -527,34 +509,15 @@ class AugustusKnowledgeIntegrationTester:
                 if not result['success']:
                     print(f"❌ {result['test']}: {result['message']}")
         
-        # Knowledge integration assessment
-        critical_tests = ['knowledge_endpoint', 'praetoria_overview_knowledge', 'system_prompt_integration']
-        critical_passed = sum(1 for r in self.results if r['test'] in critical_tests and r['success'])
-        
-        print(f"\nCRITICAL KNOWLEDGE INTEGRATION: {critical_passed}/{len(critical_tests)} core tests passed")
-        
-        if critical_passed == len(critical_tests):
-            print("🎉 AUGUSTUS KNOWLEDGE INTEGRATION: SUCCESSFUL")
-            print("✅ Praetoria knowledge endpoint comprehensive")
-            print("✅ Praefectus demonstrates expert knowledge")
-            print("✅ System prompt integration verified")
-        else:
-            print("⚠️  AUGUSTUS KNOWLEDGE INTEGRATION: NEEDS ATTENTION")
-            print("❌ Critical knowledge integration tests failed")
-        
         # Test data summary
         if self.test_data:
             print(f"\nTEST DATA CREATED:")
             for key, value in self.test_data.items():
                 if isinstance(value, str):
                     print(f"- {key}: {value}")
-                elif isinstance(value, dict) and key == 'knowledge':
-                    print(f"- {key}: {value.get('company', 'N/A')} knowledge base loaded")
-                elif isinstance(value, list):
-                    print(f"- {key}: {len(value)} items")
         
         return self.results, passed, failed
 
 if __name__ == "__main__":
-    tester = AugustusKnowledgeIntegrationTester()
-    results, passed, failed = tester.run_augustus_knowledge_integration_test()
+    tester = PraefectusContextBugTester()
+    results, passed, failed = tester.run_context_bug_verification_test()
