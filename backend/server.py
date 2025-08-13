@@ -158,7 +158,7 @@ class OperationUpdate(BaseModel):
     insights_rich: Optional[List[Dict[str, str]]] = None
     previous_active_state: Optional[str] = None
 
-@api.post("/missions")
+@api.post("/operations")
 async def create_mission(payload: MissionCreate):
     mission = Operation(**payload.model_dump())
     if mission.insights and not mission.insights_rich:
@@ -167,7 +167,7 @@ async def create_mission(payload: MissionCreate):
     await log_event("mission_created", "backend/api", {"mission_id": doc["id"]})
     return doc
 
-@api.get("/missions")
+@api.get("/operations")
 async def list_missions():
     docs = await COLL_OPERATIONS.find().sort("updated_at", -1).to_list(1000)
     out = []
@@ -184,7 +184,7 @@ async def list_missions():
         out.append(d)
     return out
 
-@api.get("/missions/{mission_id}")
+@api.get("/operations/{mission_id}")
 async def get_mission(mission_id: str):
     d = await get_by_id(COLL_OPERATIONS, mission_id)
     if not d:
@@ -199,7 +199,7 @@ async def get_mission(mission_id: str):
         await update_by_id(COLL_OPERATIONS, mission_id, {k: d[k] for k in ["counters","insights","insights_rich","previous_active_state"]})
     return d
 
-@api.post("/missions/{mission_id}/state")
+@api.post("/operations/{mission_id}/state")
 async def change_mission_state(mission_id: str, payload: Dict[str, Any]):
     doc = await get_by_id(COLL_OPERATIONS, mission_id)
     if not doc:
