@@ -595,10 +595,31 @@ async def mission_control_message(payload: MCChatInput):
         await log_event("run_controls_used", "backend/mission_control", {"action": "abort", "thread_id": thread_id, "operation_id": th["operation_id"]})
         return {"assistant": {"text": text, "created_at": assistant.created_at}}
 
-    # default LLM reply
+    # CRITICAL FIX: Get conversation history from this thread
+    # Retrieve all messages from the current thread for context
+    try:
+        thread_messages = await COLL_MESSAGES.find({"thread_id": thread_id}).sort("created_at", 1).to_list(200)
+        
+        # Build conversation history with proper role mapping
+        conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
+        
+        for msg in thread_messages:
+            if msg.get("role") == "human":
+                conversation_history.append({"role": "user", "content": msg.get("text", "")})
+            elif msg.get("role") == "praefectus":
+                conversation_history.append({"role": "assistant", "content": msg.get("text", "")})
+        
+        # Add the current user message
+        conversation_history.append({"role": "user", "content": txt})
+        
+    except Exception as e:
+        # Fallback to single message if conversation retrieval fails
+        conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": txt}]
+    
+    # default LLM reply WITH CONVERSATION CONTEXT
     client = get_llm_client(); model_id = select_praefectus_default_model()
     try:
-        r = client.chat(model_id=model_id, messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": txt}], temperature=0.3, max_tokens=800)
+        r = client.chat(model_id=model_id, messages=conversation_history, temperature=0.3, max_tokens=800)
         assistant_text = r.get("text", "")
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {e}")
