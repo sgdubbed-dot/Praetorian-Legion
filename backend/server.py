@@ -159,7 +159,7 @@ class OperationUpdate(BaseModel):
     previous_active_state: Optional[str] = None
 
 @api.post("/operations")
-async def create_mission(payload: MissionCreate):
+async def create_mission(payload: OperationCreate):
     mission = Operation(**payload.model_dump())
     if mission.insights and not mission.insights_rich:
         mission.insights_rich = [{"text": t, "timestamp": now_iso()} for t in mission.insights]
