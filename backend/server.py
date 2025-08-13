@@ -49,7 +49,7 @@ def new_id() -> str:
     return str(uuid.uuid4())
 
 # Collections
-COLL_OPERATIONS = db["Missions"]
+COLL_CAMPAIGNS = db["Missions"]
 COLL_EVENTS = db["Events"]
 COLL_THREADS = db["Threads"]
 COLL_MESSAGES = db["Messages"]
@@ -163,13 +163,13 @@ async def create_mission(payload: OperationCreate):
     mission = Operation(**payload.model_dump())
     if mission.insights and not mission.insights_rich:
         mission.insights_rich = [{"text": t, "timestamp": now_iso()} for t in mission.insights]
-    doc = await insert_with_id(COLL_OPERATIONS, mission.model_dump())
+    doc = await insert_with_id(COLL_CAMPAIGNS, mission.model_dump())
     await log_event("mission_created", "backend/api", {"operation_id": doc["id"]})
     return doc
 
 @api.get("/operations")
 async def list_missions():
-    docs = await COLL_OPERATIONS.find().sort("updated_at", -1).to_list(1000)
+    docs = await COLL_CAMPAIGNS.find().sort("updated_at", -1).to_list(1000)
     out = []
     for d in docs:
         d.pop("_id", None)
@@ -186,7 +186,7 @@ async def list_missions():
 
 @api.get("/operations/{operation_id}")
 async def get_mission(operation_id: str):
-    d = await get_by_id(COLL_OPERATIONS, operation_id)
+    d = await get_by_id(COLL_CAMPAIGNS, operation_id)
     if not d:
         raise HTTPException(status_code=404, detail="Mission not found")
     # migrate-on-read
@@ -196,12 +196,12 @@ async def get_mission(operation_id: str):
     if "insights_rich" not in d: d["insights_rich"] = []; changed = True
     if "previous_active_state" not in d: d["previous_active_state"] = None; changed = True
     if changed:
-        await update_by_id(COLL_OPERATIONS, operation_id, {k: d[k] for k in ["counters","insights","insights_rich","previous_active_state"]})
+        await update_by_id(COLL_CAMPAIGNS, operation_id, {k: d[k] for k in ["counters","insights","insights_rich","previous_active_state"]})
     return d
 
 @api.post("/operations/{operation_id}/state")
 async def change_mission_state(operation_id: str, payload: Dict[str, Any]):
-    doc = await get_by_id(COLL_OPERATIONS, operation_id)
+    doc = await get_by_id(COLL_CAMPAIGNS, operation_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Mission not found")
     state = payload.get("state")
@@ -215,8 +215,8 @@ async def change_mission_state(operation_id: str, payload: Dict[str, Any]):
         await log_event("mission_paused", "backend/api", {"operation_id": operation_id})
     elif state == "complete":
         await log_event("mission_completed", "backend/api", {"operation_id": operation_id})
-    await update_by_id(COLL_OPERATIONS, operation_id, {"state": state})
-    return await get_by_id(COLL_OPERATIONS, operation_id)
+    await update_by_id(COLL_CAMPAIGNS, operation_id, {"state": state})
+    return await get_by_id(COLL_CAMPAIGNS, operation_id)
 
 # Findings
 class Finding(BaseModel):
@@ -447,7 +447,7 @@ async def list_threads(operation_id: Optional[str] = None):
     for d in threads:
         mission = None
         if d.get("operation_id"):
-            mission = await COLL_OPERATIONS.find_one({"_id": d["operation_id"]})
+            mission = await COLL_CAMPAIGNS.find_one({"_id": d["operation_id"]})
             if mission: mission.pop("_id", None)
         status = map_thread_status(mission)
         d.pop("_id", None)
@@ -468,7 +468,7 @@ async def get_thread(thread_id: str, limit: int = 50, before: Optional[str] = No
     for d in msgs: d.pop("_id", None)
     mission = None
     if th.get("operation_id"):
-        mission = await COLL_OPERATIONS.find_one({"_id": th.get("operation_id")})
+        mission = await COLL_CAMPAIGNS.find_one({"_id": th.get("operation_id")})
         if mission: mission.pop("_id", None)
     status = map_thread_status(mission)
     await log_event("thread_loaded", "backend/mission_control", {"thread_id": thread_id})
@@ -522,10 +522,10 @@ async def mission_control_message(payload: MCChatInput):
 
     if lowered == "run mission now":
         if th.get("operation_id"):
-            mission = await get_by_id(COLL_OPERATIONS, th["operation_id"])
+            mission = await get_by_id(COLL_CAMPAIGNS, th["operation_id"])
             if mission.get("state") == "paused":
                 prior = mission.get("previous_active_state") or "scanning"
-                await update_by_id(COLL_OPERATIONS, mission["id"], {"state": prior})
+                await update_by_id(COLL_CAMPAIGNS, mission["id"], {"state": prior})
                 await log_event("mission_resumed", "backend/mission_control", {"operation_id": mission["id"]})
                 text = "Resumed the mission. Ready to continue."
                 assistant = Message(thread_id=thread_id, operation_id=mission["id"], role="praefectus", text=text, metadata={"actions": ["start_now", "edit_draft"]})
@@ -563,7 +563,7 @@ async def mission_control_message(payload: MCChatInput):
             return {"assistant": {"text": text, "created_at": assistant.created_at, "metadata": assistant.metadata}, "operation_id": operation_id}
 
     if lowered == "pause mission" and th.get("operation_id"):
-        await update_by_id(COLL_OPERATIONS, th["operation_id"], {"state": "paused", "previous_active_state": "engaging"})
+        await update_by_id(COLL_CAMPAIGNS, th["operation_id"], {"state": "paused", "previous_active_state": "engaging"})
         await log_event("mission_paused", "backend/mission_control", {"operation_id": th["operation_id"]})
         text = "Mission paused."
         assistant = Message(thread_id=thread_id, operation_id=th["operation_id"], role="praefectus", text=text)
@@ -574,7 +574,7 @@ async def mission_control_message(payload: MCChatInput):
         return {"assistant": {"text": text, "created_at": assistant.created_at}}
 
     if lowered == "stop mission" and th.get("operation_id"):
-        await update_by_id(COLL_OPERATIONS, th["operation_id"], {"state": "complete"})
+        await update_by_id(COLL_CAMPAIGNS, th["operation_id"], {"state": "complete"})
         await log_event("mission_completed", "backend/mission_control", {"operation_id": th["operation_id"]})
         text = "Mission stopped and marked complete."
         assistant = Message(thread_id=thread_id, operation_id=th["operation_id"], role="praefectus", text=text)
@@ -585,7 +585,7 @@ async def mission_control_message(payload: MCChatInput):
         return {"assistant": {"text": text, "created_at": assistant.created_at}}
 
     if lowered == "abort mission" and th.get("operation_id"):
-        await update_by_id(COLL_OPERATIONS, th["operation_id"], {"state": "aborted"})
+        await update_by_id(COLL_CAMPAIGNS, th["operation_id"], {"state": "aborted"})
         await log_event("mission_aborted", "backend/mission_control", {"operation_id": th["operation_id"]})
         text = "Mission aborted."
         assistant = Message(thread_id=thread_id, operation_id=th["operation_id"], role="praefectus", text=text)
@@ -639,7 +639,7 @@ class DuplicateRunInput(BaseModel):
     start_now: Optional[bool] = True
 
 async def duplicate_run_internal(operation_id: str, source_thread_id: str, start_now: bool = True):
-    base = await get_by_id(COLL_OPERATIONS, operation_id)
+    base = await get_by_id(COLL_CAMPAIGNS, operation_id)
     if not base: raise HTTPException(status_code=404, detail="Mission not found")
     src_thread = await COLL_THREADS.find_one({"_id": source_thread_id})
     if not src_thread: raise HTTPException(status_code=404, detail="Source thread not found")
@@ -654,7 +654,7 @@ async def duplicate_run_internal(operation_id: str, source_thread_id: str, start
     await COLL_THREADS.insert_one(ndoc)
     await log_event("mission_created", "backend/mission_control", {"operation_id": created["id"], "duplicated_from": operation_id})
     if start_now:
-        await update_by_id(COLL_OPERATIONS, created["id"], {"state": "engaging"})
+        await update_by_id(COLL_CAMPAIGNS, created["id"], {"state": "engaging"})
         await log_event("mission_started", "backend/mission_control", {"operation_id": created["id"]})
     # system message
     text = "New run created. Any changes before starting?"
@@ -791,7 +791,7 @@ async def list_agents():
         # Apply status logic based on missions
         if d["agent_name"] == "Legatus":
             # Check if any research_only missions are active
-            research_missions = await COLL_OPERATIONS.find({
+            research_missions = await COLL_CAMPAIGNS.find({
                 "posture": "research_only", 
                 "state": {"$in": ["scanning", "engaging"]}
             }).to_list(1)
