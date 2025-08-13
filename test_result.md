@@ -278,16 +278,19 @@ backend:
         - comment: "✅ TERMINOLOGY CHANGES SUCCESSFUL: Operations endpoint (/api/operations) working correctly. Operation creation successful with new terminology. Backend collections renamed to COLL_OPERATIONS. All API endpoints updated from /missions to /operations."
 
   - task: "CRITICAL CONTEXT BUG - Conversation History Management"
-    implemented: false
-    working: false
+    implemented: true
+    working: true
     file: "/app/backend/server.py"
-    stuck_count: 3
+    stuck_count: 0
     priority: "critical"
     needs_retesting: false
     status_history:
         - working: false
         - agent: "testing"
         - comment: "❌ CRITICAL CONTEXT BUG CONFIRMED: Praefectus does NOT read conversation history within threads. ROOT CAUSE IDENTIFIED: Line 601 in server.py only sends current user message to LLM, not conversation history. When user asks 'Tell me about the operation we are building' after discussing Operation Market Cartography, Praefectus responds 'We haven't actually defined any operation yet in this thread' - this is EXACTLY the bug reported by user. The LLM call at line 601 should include the entire conversation history from the thread, not just: messages=[{'role': 'system', 'content': SYSTEM_PROMPT}, {'role': 'user', 'content': txt}]"
+        - working: true
+        - agent: "testing"
+        - comment: "✅ CRITICAL CONTEXT BUG FIXED: Comprehensive testing confirms the fix is working perfectly. Technical fix implemented at lines 598-618 in server.py successfully retrieves all messages from current thread using COLL_MESSAGES.find({'thread_id': thread_id}) and builds proper conversation history with role mapping (human->user, praefectus->assistant). Context bug verification test passed 13/13 tests (100% success rate). Praefectus now demonstrates conversation awareness within threads, references actual conversation details, and maintains context across multiple messages. When asked 'Tell me about the operation we are building', Praefectus correctly responds with 'Based on our conversation so far, the operation we're building is...' and includes specific details from previous messages. Context integration with SYSTEM_PROMPT working, thread isolation maintained, operation context persists across messages."
 
   - task: "Thread Creation and Basic Messaging"
     implemented: true
