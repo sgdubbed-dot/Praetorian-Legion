@@ -326,7 +326,7 @@ backend:
         - comment: "GET /api/health working correctly with Phoenix timestamp format (-07:00). Response includes {ok: true, timestamp} as expected."
 
 frontend:
-  - task: "Frontend testing not applicable for knowledge integration"
+  - task: "Frontend testing not applicable for context bug verification"
     implemented: false
     working: "NA"
     file: "N/A"
@@ -336,7 +336,7 @@ frontend:
     status_history:
         - working: "NA"
         - agent: "testing"
-        - comment: "Frontend testing not required for Augustus knowledge integration test. Focus is on backend knowledge endpoint and Praefectus system prompt integration only."
+        - comment: "Frontend testing not required for context bug verification. Focus is on backend conversation context management only."
 
 metadata:
   created_by: "testing_agent"
