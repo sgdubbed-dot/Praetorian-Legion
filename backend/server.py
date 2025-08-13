@@ -160,7 +160,7 @@ class CampaignUpdate(BaseModel):
 
 @api.post("/campaigns")
 async def create_mission(payload: OperationCreate):
-    mission = Operation(**payload.model_dump())
+    mission = Campaign(**payload.model_dump())
     if mission.insights and not mission.insights_rich:
         mission.insights_rich = [{"text": t, "timestamp": now_iso()} for t in mission.insights]
     doc = await insert_with_id(COLL_CAMPAIGNS, mission.model_dump())
