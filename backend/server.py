@@ -974,6 +974,64 @@ async def get_guardrail(guardrail_id: str):
     d.setdefault("standing_permissions", [])
     return d
 
+# Exports endpoints
+class Export(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(default_factory=new_id)
+    recipe_name: str
+    filter_spec: Dict[str, Any] = Field(default_factory=dict)
+    status: str = "pending"  # pending, generating, complete
+    file_url: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+class ExportRecipeCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    recipe_name: str
+    filter_spec: Dict[str, Any] = Field(default_factory=dict)
+
+class ExportGenerate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    recipe_name: str
+
+@api.get("/exports")
+async def list_exports():
+    docs = await COLL_EXPORTS.find().sort("updated_at", -1).to_list(100)
+    out = []
+    for d in docs:
+        d.pop("_id", None)
+        d.setdefault("filter_spec", {})
+        out.append(d)
+    return out
+
+@api.post("/exports/recipe")
+async def create_export_recipe(payload: ExportRecipeCreate):
+    export = Export(**payload.model_dump())
+    doc = await insert_with_id(COLL_EXPORTS, export.model_dump())
+    await log_event("export_recipe_created", "backend/exports", {"export_id": doc["id"], "recipe_name": doc["recipe_name"]})
+    return doc
+
+@api.post("/exports/generate")
+async def generate_export(payload: ExportGenerate):
+    # Find the recipe by name
+    recipe = await COLL_EXPORTS.find_one({"recipe_name": payload.recipe_name})
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Export recipe not found")
+    
+    # Update status to generating
+    await update_by_id(COLL_EXPORTS, recipe["_id"], {"status": "generating"})
+    
+    # For now, just mark as complete with a mock file URL
+    # In a real implementation, this would generate the actual export file
+    file_url = f"/downloads/{recipe['_id']}.csv"
+    await update_by_id(COLL_EXPORTS, recipe["_id"], {
+        "status": "complete",
+        "file_url": file_url
+    })
+    
+    await log_event("export_generated", "backend/exports", {"export_id": recipe["_id"], "recipe_name": payload.recipe_name})
+    return await get_by_id(COLL_EXPORTS, recipe["_id"])
+
 # Basic health endpoints
 @api.get("/health")
 async def health():
