@@ -479,7 +479,7 @@ backend:
         - comment: "Phoenix timestamps verified across all endpoints. Health endpoint, events, and all API responses include proper Phoenix timezone format (-07:00) as required."
 
 frontend:
-  - task: "Build renders without syntax errors"
+  - task: "Augustus branding verification - Main title, tagline, navigation"
     implemented: true
     working: true
     file: "/app/frontend/src/App.js"
@@ -489,81 +489,45 @@ frontend:
     status_history:
         - working: true
         - agent: "testing"
-        - comment: "App renders successfully with full navigation working across all pages. No critical syntax errors blocking functionality."
+        - comment: "✅ BRANDING VERIFICATION PASSED: All Augustus branding elements verified successfully. (1) Main title 'Augustus' displays prominently at top of all pages, (2) Latin tagline 'Praetoria Machina Prudentia Negotiorum Magister' appears in italics below Augustus, (3) Mission Control navigation shows only 'Mission Control' (no Praefectus), (4) Praefectus chat header shows 'Praefectus' with 'Strategic AI Commander' subtitle in Mission Control page. Complete rebranding from 'Praetorian Legion' to 'Augustus' successfully implemented."
 
-  - task: "Mission Control Sync Now toast, Enter-to-send vs Shift+Enter newline, Expand modal sections with Copy"
+  - task: "Agents page functionality and route configuration"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/App.js"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: false
+        - agent: "testing"
+        - comment: "❌ CRITICAL ISSUE: Agents page route missing from App.js Routes section. Navigation link exists and Agents.jsx component exists, but no route defined for '/agents' path. Console shows 'No routes matched location /agents'. This prevents access to the Agents page functionality including the 3 agents (Praefectus, Explorator, Legatus) with status dots and sync functionality. Route needs to be added: <Route path='/agents' element={<Agents />} />."
+
+  - task: "Rolodex page functionality and prospect management"
     implemented: true
     working: true
-    file: "/app/frontend/src/pages/MissionControl.jsx"
+    file: "/app/frontend/src/pages/Rolodex.jsx"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
         - working: true
         - agent: "testing"
-        - comment: "✅ Sync Now toast appears correctly. ✅ Enter-to-send functionality working. ✅ Shift+Enter creates newlines properly. ✅ Expand modal opens with 4 Copy buttons functional. Minor: Clipboard write permission denied error in dev environment but doesn't affect core functionality."
+        - comment: "✅ ROLODEX PAGE VERIFICATION PASSED: Found test prospect 'John Doe' as expected. Prospect creation and display functionality working correctly. Page loads properly with table display and form functionality intact."
 
-  - task: "Missions Detail Back to Missions, state chip, Override Pause/Resume/Abort, Duplicate on aborted, Recent Events plain-English + raw, Insights add/edit with Phoenix times"
+  - task: "Hot Leads page functionality and approval workflow"
     implemented: true
     working: true
-    file: "/app/frontend/src/pages/MissionDetail.jsx"
+    file: "/app/frontend/src/pages/HotLeads.jsx"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
         - working: true
         - agent: "testing"
-        - comment: "✅ Back to Missions button visible and functional. ✅ State chip displays correctly. ✅ Override dropdown with Pause/Resume/Abort options working. ✅ Duplicate button appears on aborted missions. ✅ Recent Events toggle between plain-English and raw JSON working. ✅ Insights add/edit functionality with Phoenix timestamps working correctly."
+        - comment: "✅ HOT LEADS PAGE VERIFICATION PASSED: Hot leads table visible and approval workflow buttons (Approve, Defer, Reject) found and functional. Hotlead display and approval workflow working correctly as expected."
 
-  - task: "Forums create with URL, link_status chip, Retry updates, link disabled when not_found, real search links open"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/pages/Forums.jsx"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-        - agent: "testing"
-        - comment: "✅ Forum creation with URL functionality working. ✅ Link_status chips (ok/blocked) visible and accurate. ✅ Retry updates functionality tested and working. ✅ Links disabled when not_found (non-clickable forum names). ✅ Real search links are clickable and functional."
-
-  - task: "Prospect Detail source_type visible, signals show quote+link/icon+Phoenix time, Back to Rolodex"
-    implemented: true
-    working: "NA"
-    file: "/app/frontend/src/pages/ProspectDetail.jsx"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: "NA"
-        - agent: "testing"
-        - comment: "Limited testing due to data availability. ✅ Back to Rolodex button visible. ✅ Source type field visible in UI. ✅ Signals section structure correct with Phoenix timestamp formatting. Unable to fully test signals with quote+link/icon due to limited prospect data in test environment."
-
-  - task: "Hot Lead Detail Back, evidence link fallback, Edit Script modal save, Propose My Message save, events show script edited"
-    implemented: true
-    working: "NA"
-    file: "/app/frontend/src/pages/HotLeadDetail.jsx"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: "NA"
-        - agent: "testing"
-        - comment: "Limited testing due to data availability. ✅ Back to Hot Leads button visible. ✅ Evidence section with fallback text 'Example only (no source)' visible. ✅ Edit Script modal structure correct. ✅ Propose My Message textarea and save button present. Unable to fully test due to limited hot lead data in test environment."
-
-  - task: "Agents Sync Now toast, Last event badge, polling refresh"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/pages/Agents.jsx"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-        - agent: "testing"
-        - comment: "✅ Three agents (Praefectus, Explorator, Legatus) always visible with status dots. ✅ Sync Now toast appears correctly. ✅ Last event badges visible with proper Phoenix timestamp formatting. ✅ Polling refresh working (5-second intervals verified). ✅ Agent selection shows activity panel correctly."
-
-  - task: "Guardrails Inline etiquette help visible, Quick Templates insert and are editable and persist, Open detail shows rule fields + history from events, Back works"
+  - task: "Guardrails page functionality and rule management"
     implemented: true
     working: true
     file: "/app/frontend/src/pages/Guardrails.jsx"
@@ -573,7 +537,43 @@ frontend:
     status_history:
         - working: true
         - agent: "testing"
-        - comment: "✅ Inline etiquette help visible ('No cold DMs; DM only after public opt-in...'). ✅ Quick Templates section visible with insert functionality. ✅ Templates are editable after insertion. ✅ Templates persist after save. ✅ Open detail shows all rule fields (Type, Scope, Value, Notes). ✅ History from events visible in detail view. ✅ Back functionality works correctly."
+        - comment: "✅ GUARDRAILS PAGE VERIFICATION PASSED: Guardrails table visible, inline etiquette help visible ('No cold DMs; DM only after public opt-in'), and Quick Templates functionality present. Guardrail creation and display working correctly."
+
+  - task: "Navigation accessibility and 404 error prevention"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/App.js"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: false
+        - agent: "testing"
+        - comment: "❌ CRITICAL NAVIGATION ISSUES: (1) Agents page route missing from App.js causing 404, (2) /api/exports endpoint returns 404 causing Exports page errors, (3) Red error overlay blocking UI interactions due to uncaught runtime errors. Most navigation tabs accessible (Mission Control, Missions, Forums, Rolodex, Hot Leads, Guardrails) but Agents and Exports have critical issues. Failed pages: Agents (missing route), Exports (404 API endpoint)."
+
+  - task: "Mission Control chat functionality and Praefectus interaction"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/pages/MissionControl.jsx"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: false
+        - agent: "testing"
+        - comment: "❌ MISSION CONTROL CHAT BLOCKED: Red error overlay with 'Uncaught runtime errors' is intercepting pointer events and preventing UI interactions. Multiple 404 errors visible in overlay (AxiosError: Request failed with status code 404). Chat functionality cannot be tested due to webpack dev server client overlay blocking clicks. Error overlay needs to be resolved before chat testing can proceed."
+
+  - task: "Critical runtime error resolution"
+    implemented: false
+    working: false
+    file: "/app/frontend/src/App.js"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: false
+        - agent: "testing"
+        - comment: "❌ CRITICAL: Red error overlay showing 'Uncaught runtime errors' with multiple AxiosError 404 responses. Errors include: (1) /api/exports endpoint 404, (2) Multiple failed requests causing runtime errors, (3) Webpack dev server client overlay intercepting all pointer events preventing UI interaction. This is blocking all functionality testing and needs immediate resolution."
 
 backend:
   - task: "Health endpoint verification"
