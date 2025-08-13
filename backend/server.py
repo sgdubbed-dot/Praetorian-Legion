@@ -1064,6 +1064,108 @@ async def generate_export(payload: ExportGenerate):
     await log_event("export_generated", "backend/exports", {"export_id": recipe["_id"], "recipe_name": payload.recipe_name})
     return await get_by_id(COLL_EXPORTS, recipe["_id"])
 
+# Praetoria Knowledge Base endpoint
+@api.get("/knowledge/praetoria")
+async def get_praetoria_knowledge():
+    """Comprehensive knowledge base about Praetoria for Augustus agents"""
+    return {
+        "company": "Praetoria",
+        "mission": "Visibility and control layer for the agent economy",
+        "tagline": "Unified command center for monitoring, validating, and coordinating autonomous AI agents",
+        
+        "evolution_stages": {
+            "stage_1": {
+                "name": "Agent Observability",
+                "status": "Live now",
+                "description": "Mission Control for live agent fleets",
+                "features": [
+                    "Real-time agent monitoring and status tracking",
+                    "Agent Trace Log & Replay for forensics-grade debugging", 
+                    "Organization Views with KPIs and alerts",
+                    "Error analysis with root-cause and fix suggestions",
+                    "Global agent index with performance metrics"
+                ]
+            },
+            "stage_2": {
+                "name": "Platform & Registry", 
+                "timeline": "2-4 months",
+                "description": "Registry of registries with verified agent identity",
+                "features": [
+                    "Unified Agent Index across all registries",
+                    "Praetoria Agent ID (PAID) canonical identity",
+                    "Claim & Verification with ownership proofs",
+                    "Reputation & History tracking",
+                    "Legal/Audit logging for compliance"
+                ]
+            },
+            "stage_3": {
+                "name": "Control Infrastructure",
+                "timeline": "6-12 months", 
+                "description": "Internet-grade routing, payments, and security",
+                "features": [
+                    "Behavior-aware Routing (Praetoria Relay)",
+                    "Agent-to-Agent Payments with escrow/metering",
+                    "Security & Threat Intelligence",
+                    "Agent firewalls and policy guards",
+                    "Premium reputation & compliance APIs"
+                ]
+            }
+        },
+        
+        "target_personas": [
+            {
+                "name": "Developers/Agent Teams",
+                "pain_points": ["Lack of agent visibility", "Difficult debugging", "No trace replay"],
+                "value_props": ["Real-time observability", "Fast debugging", "Reproducible traces", "Verified identity path"]
+            },
+            {
+                "name": "Startups", 
+                "pain_points": ["No post-launch monitoring", "Building custom dashboards", "Investor visibility"],
+                "value_props": ["Ready-made monitoring", "Clear performance views", "Professional dashboards"]
+            },
+            {
+                "name": "Enterprises",
+                "pain_points": ["Multi-vendor agent chaos", "No governance", "Compliance gaps"],
+                "value_props": ["Unified visibility", "Governance controls", "Audit logs", "Risk scores"]
+            },
+            {
+                "name": "Security & Compliance",
+                "pain_points": ["Unknown agent behavior", "No policy enforcement", "Audit difficulties"],
+                "value_props": ["Anomaly detection", "Policy enforcement", "Provenance tracking", "Compliance logging"]
+            },
+            {
+                "name": "Investors & Analysts",
+                "pain_points": ["No agent economy visibility", "Market intelligence gaps"],
+                "value_props": ["Real-time market view", "Performance analytics", "Ecosystem insights"]
+            }
+        ],
+        
+        "competitive_advantages": [
+            "Built for agents, not generic apps or ML models",
+            "Captures prompt/response traces and multi-step reasoning",
+            "Framework-agnostic (LangChain, CrewAI, AutoGen, LangGraph, on-chain)",
+            "Privacy-by-design with tiered visibility",
+            "Evolution path: tool → platform → infrastructure",
+            "Agent-native routing, payments, and security"
+        ],
+        
+        "market_problems": [
+            "Agent proliferation without control towers",
+            "No shared identity or registry for agents", 
+            "Hard to verify ownership, provenance, performance",
+            "Need for agent-native routing, payments, security",
+            "Lack of interoperability and trust mechanisms"
+        ],
+        
+        "business_model": {
+            "stage_1": "SaaS subscription by org/agent with usage tiers",
+            "stage_2": "Registry fees, data intelligence APIs, compliance services", 
+            "stage_3": "Routing fees, reputation APIs, threat-intel subscriptions, verification tolls"
+        },
+        
+        "north_star": "As agents become first-class internet citizens, they need accountability, discovery, trust, and safe interoperation. Praetoria lays the rails for a resilient, thriving agent economy."
+    }
+
 # Basic health endpoints
 @api.get("/health")
 async def health():
