@@ -687,6 +687,287 @@ async def forum_check_link(forum_id: str):
     await update_by_id(COLL_FORUMS, forum_id, {"link_status": status, "last_checked_at": now_iso()})
     return await get_by_id(COLL_FORUMS, forum_id)
 
+# Agents endpoints
+class Agent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(default_factory=new_id)
+    agent_name: str
+    status_light: str = "green"  # green, yellow, red
+    error_state: Optional[str] = None
+    next_retry_at: Optional[str] = None
+    activity_stream: List[Dict[str, Any]] = Field(default_factory=list)
+    last_activity: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+async def seed_agents():
+    """Ensure the three core agents exist"""
+    agent_names = ["Praefectus", "Explorator", "Legatus"]
+    existing = await COLL_AGENTS.find({"agent_name": {"$in": agent_names}}).to_list(10)
+    existing_names = {a["agent_name"] for a in existing}
+    
+    for name in agent_names:
+        if name not in existing_names:
+            agent = Agent(
+                agent_name=name,
+                status_light="yellow" if name == "Legatus" else "green",
+                last_activity=now_iso()
+            )
+            await insert_with_id(COLL_AGENTS, agent.model_dump())
+            await log_event("agent_seeded", "backend/agents", {"agent_name": name})
+
+@api.get("/agents")
+async def list_agents():
+    # Ensure core agents exist
+    await seed_agents()
+    
+    # Get agents with proper status logic
+    docs = await COLL_AGENTS.find().to_list(100)
+    agents = []
+    
+    for d in docs:
+        d.pop("_id", None)
+        
+        # Apply status logic based on missions
+        if d["agent_name"] == "Legatus":
+            # Check if any research_only missions are active
+            research_missions = await COLL_MISSIONS.find({
+                "posture": "research_only", 
+                "state": {"$in": ["scanning", "engaging"]}
+            }).to_list(1)
+            if research_missions:
+                d["status_light"] = "yellow"
+            else:
+                d["status_light"] = "green"
+        
+        # Handle auto-reset for Explorator
+        if d["agent_name"] == "Explorator" and d.get("next_retry_at"):
+            from datetime import datetime
+            try:
+                retry_time = datetime.fromisoformat(d["next_retry_at"].replace("Z", "+00:00"))
+                now_time = datetime.now(retry_time.tzinfo)
+                if now_time >= retry_time:
+                    # Auto-reset: clear error state and set to green
+                    d["status_light"] = "green"
+                    d["error_state"] = None
+                    d["next_retry_at"] = None
+                    await update_by_id(COLL_AGENTS, d["id"], {
+                        "status_light": "green",
+                        "error_state": None,
+                        "next_retry_at": None
+                    })
+                    await log_event("agent_error_cleared", "backend/agents", {"agent_name": "Explorator"})
+            except:
+                pass
+        
+        agents.append(d)
+    
+    return agents
+
+# Scenario endpoints for testing
+@api.post("/scenarios/agent_error_retry")
+async def scenario_agent_error(payload: Dict[str, Any]):
+    """Test scenario: trigger Explorator error with retry"""
+    minutes = payload.get("minutes", 1)
+    
+    # Set Explorator to error state
+    from datetime import datetime, timedelta
+    retry_time = datetime.now(PHOENIX_TZ) + timedelta(minutes=minutes)
+    
+    await update_by_id(COLL_AGENTS, "Explorator", {
+        "status_light": "red",
+        "error_state": "crawl_timeout", 
+        "next_retry_at": retry_time.isoformat()
+    })
+    
+    # Create agent if it doesn't exist
+    existing = await COLL_AGENTS.find_one({"agent_name": "Explorator"})
+    if not existing:
+        agent = Agent(
+            agent_name="Explorator",
+            status_light="red",
+            error_state="crawl_timeout",
+            next_retry_at=retry_time.isoformat()
+        )
+        await insert_with_id(COLL_AGENTS, agent.model_dump())
+    
+    await log_event("agent_error_detected", "backend/scenarios", {"agent_name": "Explorator", "minutes": minutes})
+    
+    return {"agent": await get_by_id(COLL_AGENTS, "Explorator") or {"agent_name": "Explorator", "status_light": "red", "error_state": "crawl_timeout", "next_retry_at": retry_time.isoformat()}}
+
+# Prospects (Rolodex) endpoints  
+class Prospect(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(default_factory=new_id)
+    name_or_alias: str
+    handles: Dict[str, str] = Field(default_factory=dict)
+    priority_state: str = "cold"  # cold, warm, hot
+    signals: List[Dict[str, Any]] = Field(default_factory=list)
+    source_type: str = "manual"  # manual, seeded
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+class ProspectCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name_or_alias: str
+    handles: Dict[str, str] = Field(default_factory=dict)
+    priority_state: str = "cold"
+    source_type: str = "manual"
+
+@api.get("/prospects")
+async def list_prospects():
+    docs = await COLL_ROLODEX.find().sort("updated_at", -1).to_list(500)
+    out = []
+    for d in docs:
+        d.pop("_id", None)
+        d.setdefault("handles", {})
+        d.setdefault("signals", [])
+        d.setdefault("source_type", "manual")
+        out.append(d)
+    return out
+
+@api.post("/prospects")
+async def create_prospect(payload: ProspectCreate):
+    prospect = Prospect(**payload.model_dump())
+    doc = await insert_with_id(COLL_ROLODEX, prospect.model_dump())
+    await log_event("prospect_created", "backend/prospects", {"prospect_id": doc["id"]})
+    return doc
+
+@api.get("/prospects/{prospect_id}")
+async def get_prospect(prospect_id: str):
+    d = await get_by_id(COLL_ROLODEX, prospect_id)
+    if not d:
+        raise HTTPException(status_code=404, detail="Prospect not found")
+    d.setdefault("handles", {})
+    d.setdefault("signals", [])
+    d.setdefault("source_type", "manual")
+    return d
+
+# HotLeads endpoints
+class HotLead(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(default_factory=new_id)
+    prospect_id: str
+    status: str = "pending_approval"  # pending_approval, approved, deferred, removed
+    evidence: List[Dict[str, Any]] = Field(default_factory=list)
+    proposed_script: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+class HotLeadCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    prospect_id: str
+    evidence: List[Dict[str, Any]] = Field(default_factory=list)
+    proposed_script: Optional[str] = None
+
+class HotLeadStatusUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    status: str
+
+class HotLeadScriptUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    proposed_script: str
+
+@api.get("/hotleads")
+async def list_hotleads():
+    docs = await COLL_HOT_LEADS.find().sort("updated_at", -1).to_list(200)
+    out = []
+    for d in docs:
+        d.pop("_id", None)
+        d.setdefault("evidence", [])
+        out.append(d)
+    return out
+
+@api.post("/hotleads")
+async def create_hotlead(payload: HotLeadCreate):
+    hotlead = HotLead(**payload.model_dump())
+    doc = await insert_with_id(COLL_HOT_LEADS, hotlead.model_dump())
+    await log_event("hotlead_created", "backend/hotleads", {"hotlead_id": doc["id"], "prospect_id": doc["prospect_id"]})
+    return doc
+
+@api.get("/hotleads/{hotlead_id}")
+async def get_hotlead(hotlead_id: str):
+    d = await get_by_id(COLL_HOT_LEADS, hotlead_id)
+    if not d:
+        raise HTTPException(status_code=404, detail="HotLead not found")
+    d.setdefault("evidence", [])
+    return d
+
+@api.post("/hotleads/{hotlead_id}/status")
+async def update_hotlead_status(hotlead_id: str, payload: HotLeadStatusUpdate):
+    count = await update_by_id(COLL_HOT_LEADS, hotlead_id, {"status": payload.status})
+    if count == 0:
+        raise HTTPException(status_code=404, detail="HotLead not found")
+    await log_event("hotlead_status_updated", "backend/hotleads", {"hotlead_id": hotlead_id, "status": payload.status})
+    return await get_by_id(COLL_HOT_LEADS, hotlead_id)
+
+@api.patch("/hotleads/{hotlead_id}")
+async def update_hotlead_script(hotlead_id: str, payload: HotLeadScriptUpdate):
+    count = await update_by_id(COLL_HOT_LEADS, hotlead_id, {"proposed_script": payload.proposed_script})
+    if count == 0:
+        raise HTTPException(status_code=404, detail="HotLead not found")
+    await log_event("hotlead_script_edited", "backend/hotleads", {"hotlead_id": hotlead_id})
+    return await get_by_id(COLL_HOT_LEADS, hotlead_id)
+
+# Guardrails endpoints
+class Guardrail(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(default_factory=new_id)
+    type: Optional[str] = None
+    scope: str = "global"
+    value: Optional[str] = None
+    notes: Optional[str] = None
+    # Legacy fields from original schema
+    default_posture: Optional[str] = None
+    frequency_caps: Optional[Dict[str, Any]] = None
+    sensitive_topics: Optional[List[str]] = None
+    standing_permissions: Optional[List[str]] = None
+    dm_etiquette: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+class GuardrailCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Optional[str] = None
+    scope: str = "global"
+    value: Optional[str] = None
+    notes: Optional[str] = None
+    # Legacy fields
+    default_posture: Optional[str] = None
+    frequency_caps: Optional[Dict[str, Any]] = None
+    sensitive_topics: Optional[List[str]] = None
+    standing_permissions: Optional[List[str]] = None
+    dm_etiquette: Optional[str] = None
+
+@api.get("/guardrails")
+async def list_guardrails():
+    docs = await COLL_GUARDRAILS.find().sort("updated_at", -1).to_list(200)
+    out = []
+    for d in docs:
+        d.pop("_id", None)
+        d.setdefault("scope", "global")
+        d.setdefault("sensitive_topics", [])
+        d.setdefault("standing_permissions", [])
+        out.append(d)
+    return out
+
+@api.post("/guardrails")
+async def create_guardrail(payload: GuardrailCreate):
+    guardrail = Guardrail(**payload.model_dump())
+    doc = await insert_with_id(COLL_GUARDRAILS, guardrail.model_dump())
+    await log_event("guardrail_created", "backend/guardrails", {"guardrail_id": doc["id"], "type": doc.get("type")})
+    return doc
+
+@api.get("/guardrails/{guardrail_id}")
+async def get_guardrail(guardrail_id: str):
+    d = await get_by_id(COLL_GUARDRAILS, guardrail_id)
+    if not d:
+        raise HTTPException(status_code=404, detail="Guardrail not found")
+    d.setdefault("scope", "global")
+    d.setdefault("sensitive_topics", [])
+    d.setdefault("standing_permissions", [])
+    return d
+
 # Basic health endpoints
 @api.get("/health")
 async def health():
