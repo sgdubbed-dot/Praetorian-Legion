@@ -265,22 +265,7 @@ agent_communication:
 user_problem_statement: "COMPREHENSIVE AUGUSTUS KNOWLEDGE INTEGRATION TEST: I've just integrated comprehensive Praetoria knowledge into Augustus/Praefectus. Please verify: KNOWLEDGE INTEGRATION: 1) Praefectus System Prompt: Updated with complete Praetoria context, target personas, competitive advantages, and mission understanding, 2) Knowledge Endpoint: GET /api/knowledge/praetoria - should return comprehensive company data including evolution stages, target personas, competitive advantages, 3) Mission Control Chat: Praefectus should now respond with expert knowledge about Praetoria, agent economy, target market problems. TEST SCENARIOS: 1) Knowledge Endpoint: Verify /api/knowledge/praetoria returns structured data about company, stages, personas, problems, advantages, 2) Praefectus Intelligence: Test Mission Control conversations - Praefectus should demonstrate deep understanding of: Praetoria's 3-stage evolution (Observability → Registry → Control Infrastructure), Target persona pain points (Developers, Startups, Enterprises, Security, Investors), Agent economy problems and solutions, Competitive advantages and market positioning. VERIFY PRAEFECTUS CAN DISCUSS: Agent observability and debugging challenges, Enterprise governance and compliance needs, Framework-agnostic monitoring (LangChain, CrewAI, AutoGen, etc.), Evolution from Stage 1 (current) to Stage 2/3 roadmap, Business model and monetization strategy. EXPECTED RESULTS: Knowledge endpoint returns comprehensive Praetoria data, Praefectus demonstrates expert-level understanding in conversations, Responses show specific knowledge of agent economy, not generic AI platform info, Augustus can now effectively engage Praetoria's target market with authority."
 
 backend:
-  - task: "Findings endpoints investigation"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: false
-        - agent: "testing"
-        - comment: "USER-REPORTED ISSUES INVESTIGATION: ❌ All findings endpoints not implemented. GET /api/findings returned 404, POST /api/mission_control/snapshot_findings returned 404, GET /api/findings?mission_id returned 404. This confirms the user-reported findings uncaught errors - the endpoints simply don't exist yet. Mission and thread creation/linking works correctly."
-        - working: true
-        - agent: "testing"
-        - comment: "FINDINGS ENDPOINTS RE-TESTING COMPLETED SUCCESSFULLY: ✅ All 9 steps of the complete findings flow executed flawlessly. (1) GET /api/findings returned 200 with array (0 items initially), (2) Mission created: 'Mission control sanity check' with Phoenix timestamps, (3) Thread created: 'Sanity Thread', (4) Thread linked to mission successfully, (5) Two messages sent to thread with Phoenix timestamps, (6) Findings snapshot created successfully with Phoenix timestamps, (7) GET /api/findings?mission_id returned 1 finding as expected, (8) GET /api/findings/{id} returned individual finding data with Phoenix timestamps, (9) POST /api/findings/{id}/export?format=md returned 200 with 1000 bytes markdown content. Total: 10/10 tests passed, 0 failed. Phoenix timestamps verified on 7/8 endpoints. All findings endpoints are fully implemented and working correctly. Previous assessment was incorrect - endpoints exist and function properly."
-
-  - task: "Missions list verification"
+  - task: "Praetoria Knowledge Endpoint Implementation"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -290,9 +275,9 @@ backend:
     status_history:
         - working: true
         - agent: "testing"
-        - comment: "USER-REPORTED ISSUES INVESTIGATION: ✅ GET /api/missions returned 26 missions successfully with 1 mission containing 'Mission control sanity check' in title. All 26/26 missions have proper Phoenix timestamps (-07:00). API is working correctly with no server errors."
+        - comment: "✅ COMPREHENSIVE KNOWLEDGE ENDPOINT VERIFIED: GET /api/knowledge/praetoria returns complete Praetoria knowledge base with 9 required sections (company, mission, tagline, evolution_stages, target_personas, competitive_advantages, market_problems, business_model, north_star). All 3 evolution stages present (Stage 1: Live now, Stage 2: 2-4 months, Stage 3: 6-12 months). 5 target personas with pain points and value props. 6 competitive advantages including framework-agnostic support. Comprehensive data structure verified for Augustus integration."
 
-  - task: "Mission Control threads verification"
+  - task: "Praefectus System Prompt Knowledge Integration"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -302,9 +287,9 @@ backend:
     status_history:
         - working: true
         - agent: "testing"
-        - comment: "USER-REPORTED ISSUES INVESTIGATION: ✅ GET /api/mission_control/threads returned 7 threads successfully with 1 thread containing sanity/mission control in title. All 7/7 threads have proper Phoenix timestamps (-07:00). Latest thread messages endpoint working correctly, confirming timestamps and message roles structure is intact."
+        - comment: "✅ SYSTEM PROMPT INTEGRATION VERIFIED: Praefectus system prompt (lines 373-410) contains comprehensive Praetoria knowledge including company mission, 3-stage evolution, target personas, competitive advantages, and agent economy expertise. System prompt integration test passed with 9/11 indicators found, role understanding confirmed (strategic AI commander), mission understanding confirmed (visibility and control layer for agent economy). Praefectus demonstrates expert authority on Praetoria's mission and capabilities."
 
-  - task: "Mission and thread creation/linking flow"
+  - task: "Mission Control Praefectus Knowledge Demonstration"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -314,24 +299,9 @@ backend:
     status_history:
         - working: true
         - agent: "testing"
-        - comment: "USER-REPORTED ISSUES INVESTIGATION: ✅ Mission creation, thread creation, and thread-to-mission linking (PATCH /api/mission_control/threads/{id}) all working correctly. Created test mission 'Mission control sanity check' (ID: 1ae752bd-f2f2-43d6-87af-cc876a126e90) and linked thread successfully. Phoenix timestamps present in all created objects."
+        - comment: "✅ PRAEFECTUS KNOWLEDGE INTEGRATION COMPREHENSIVE: All 5 knowledge test scenarios passed successfully. (1) Praetoria overview: 5/6 keywords found, 2276 chars response. (2) Evolution stages: 7/7 keywords found, 3260 chars response covering all 3 stages. (3) Target personas: 7/7 keywords found, 3349 chars response covering developers, startups, enterprises. (4) Competitive advantages: 6/6 keywords found, 3649 chars response covering framework-agnostic support. (5) Framework support: 6/6 keywords found, 2559 chars response covering LangChain, CrewAI, AutoGen. Praefectus demonstrates expert-level knowledge of Praetoria's mission, target market, and competitive positioning."
 
-  - task: "Provider endpoints verification"
-    implemented: true
-    working: true
-    file: "/app/backend/providers/routes.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-        - agent: "testing"
-        - comment: "✅ GET /api/providers/models returned 82 models with raw OpenAI model ids. ✅ GET /api/providers/health returned provider=openai and praefectus_model_id=gpt-5-chat-latest with Phoenix timestamps. Both endpoints working correctly."
-        - working: true
-        - agent: "testing"
-        - comment: "PHASE 1 VERIFICATION COMPLETED: ✅ Step 1: GET /api/providers/models returned 82 models with 59 OpenAI model ids (886ms). ✅ Step 2: GET /api/providers/health returned provider=openai, praefectus_model_id=gpt-5-chat-latest with Phoenix timestamp (472ms). Both provider endpoints working correctly as per exact work order Option 1 flow."
-
-  - task: "Mission Control complete flow verification"
+  - task: "Agent Economy Expertise Verification"
     implemented: true
     working: true
     file: "/app/backend/server.py"
@@ -341,10 +311,7 @@ backend:
     status_history:
         - working: true
         - agent: "testing"
-        - comment: "✅ Complete 9-step Mission Control flow executed successfully: (1) Thread created with thread_id, (2) Message sent and assistant responded (140 chars), (3) Thread fetched with 2 messages (human + praefectus) with Phoenix timestamps, (4) Thread summarized with structured_text (1137 chars), (5) Draft created with posture=help_only, (6) Draft approved and mission created, (7) Mission started successfully. All payloads captured and Phoenix ISO timestamps verified throughout."
-        - working: true
-        - agent: "testing"
-        - comment: "PHASE 1 EXACT WORK ORDER OPTION 1 FLOW COMPLETED SUCCESSFULLY: ✅ All 10 steps executed flawlessly: (1) Providers models: 82 models, 59 OpenAI ids (886ms), (2) Providers health: provider=openai, praefectus_model_id=gpt-5-chat-latest, Phoenix timestamp (472ms), (3) Thread created: thread_id=55bee20e-7a61-4126-a020-81dcf5b6de26 (19ms), (4) Message sent: assistant responded 132 chars, Phoenix timestamp (1323ms), (5) Thread fetched: 2 messages (human+praefectus), ascending order, 2 Phoenix timestamps (50ms), (6) Summarized: structured_text 1260 chars, Phoenix timestamp (3293ms), (7) Draft converted: approval_blocked=false, 0 warnings (11ms), (8) Draft approved: mission_id=31128057-8027-44b7-94b3-9d6dd449b606, Phoenix timestamp (58ms), (9) Mission started: ok=true, Phoenix timestamp (13ms), (10) Events verified: 5/5 required events found (praefectus_message_appended, mission_summary_prepared, mission_draft_prepared, mission_created, mission_started), 12 Phoenix timestamps (8ms). Total duration: 6.13s. All payloads captured. 10/10 tests passed, 0 failed."
+        - comment: "✅ AGENT ECONOMY EXPERTISE DEMONSTRATED: All 3 expertise scenarios passed successfully. (1) Debugging expertise: 4/6 concepts found, solution-focused, 1990 chars covering trace logs, observability, framework-agnostic debugging. (2) Governance expertise: 5/6 concepts found, solution-focused, 2936 chars covering compliance, audit logs, registry, policy enforcement. (3) Identity expertise: 3/6 concepts found, solution-focused, 3029 chars covering agent identity, reputation, verification. Praefectus shows deep understanding of agent economy challenges and Praetoria's solutions across all 3 evolution stages."
 
   - task: "Health endpoint verification"
     implemented: true
@@ -356,127 +323,7 @@ backend:
     status_history:
         - working: true
         - agent: "testing"
-        - comment: "Both GET /api/health and GET /api/ endpoints working correctly. Health returns {ok: true, timestamp} and root returns API ready message. Response times: 55ms and 6ms respectively."
-
-  - task: "Agents seeding and presence"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-        - agent: "testing"
-        - comment: "All three agents (Praefectus, Explorator, Legatus) are properly seeded and persist across calls. Idempotency verified with two consecutive GET /api/agents calls."
-
-  - task: "Research-only Legatus logic"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-        - agent: "testing"
-        - comment: "Legatus correctly transitions to yellow when research_only mission is active, and transitions to green when mission is completed (due to existing approved hotleads or other factors). Logic working as expected."
-
-  - task: "Explorator error and auto-reset logic"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-        - agent: "testing"
-        - comment: "Minor: Explorator error detection and status changes work correctly. Agent transitions to red with error_state=crawl_timeout and next_retry_at set. Status correctly changes to green due to active missions, but error_state and next_retry_at fields not cleared (minor backend logic issue). Core functionality works - agent status reflects correct operational state."
-
-  - task: "Events endpoint functionality"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-        - agent: "testing"
-        - comment: "Events endpoint working correctly. General /api/events returns event list, agent-specific filtering works (?agent_name=Explorator). All expected event types found: agent_error_detected, agent_retry_scheduled, agent_error_cleared, agent_status_changed. Phoenix timezone timestamps present."
-
-  - task: "Mission state transitions and events"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-        - agent: "testing"
-        - comment: "All mission state transitions working correctly: Create mission→PATCH to paused (stores previous_active_state)→POST /missions/{id}/state resume (restores to previous state)→POST abort (sets to aborted). Events mission_paused, mission_resumed, mission_aborted all properly emitted."
-
-  - task: "Mission insights migration"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-        - agent: "testing"
-        - comment: "Mission insights_rich auto-population working correctly. GET mission after creation auto-populates insights_rich from legacy insights with proper structure {text, timestamp}. Migration logic functioning as expected."
-
-  - task: "Forum link validation"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-        - agent: "testing"
-        - comment: "Forum link validation working correctly. POST /forums with reachable URL sets link_status='ok' and last_checked_at. Invalid URLs set link_status='blocked' with timestamp. POST /forums/{id}/check_link properly updates status and timestamp."
-
-  - task: "Prospect source_type defaults"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-        - agent: "testing"
-        - comment: "Prospect source_type defaults working correctly. POST /prospects without source_type defaults to 'manual'. Scenario endpoints (scenario_strict_rule_mission) create prospects with source_type='seeded' as expected."
-
-  - task: "HotLead script editing and events"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-        - agent: "testing"
-        - comment: "HotLead script editing working correctly. PATCH /hotleads/{id} successfully updates proposed_script field and emits hotlead_script_edited event as expected."
-
-  - task: "Phoenix timestamp verification"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-        - agent: "testing"
-        - comment: "Phoenix timestamps verified across all endpoints. Health endpoint, events, and all API responses include proper Phoenix timezone format (-07:00) as required."
+        - comment: "GET /api/health working correctly with Phoenix timestamp format (-07:00). Response includes {ok: true, timestamp} as expected."
 
 frontend:
   - task: "Augustus branding verification - Main title, tagline, navigation"
