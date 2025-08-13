@@ -55,6 +55,7 @@ function AppShell() {
             <Route path="/prospects/:id" element={<ProspectDetail />} />
             <Route path="/hotleads" element={<HotLeads />} />
             <Route path="/hotleads/:id" element={<HotLeadDetail />} />
+            <Route path="/agents" element={<Agents />} />
             <Route path="/guardrails" element={<Guardrails />} />
             <Route path="/guardrails/:id" element={<GuardrailDetail />} />
             <Route path="/exports" element={<Exports />} />
