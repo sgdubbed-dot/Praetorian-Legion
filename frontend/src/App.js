@@ -49,8 +49,8 @@ function AppShell() {
         <div>
           <Routes>
             <Route path="/" element={<MissionControl />} />
-            <Route path="/operations" element={<ErrorBoundary page="Operations"><Missions /></ErrorBoundary>} />
-            <Route path="/operations/:id" element={<ErrorBoundary page="OperationDetail"><MissionDetail /></ErrorBoundary>} />
+            <Route path="/campaigns" element={<ErrorBoundary page="Campaigns"><Missions /></ErrorBoundary>} />
+            <Route path="/campaigns/:id" element={<ErrorBoundary page="CampaignDetail"><MissionDetail /></ErrorBoundary>} />
             <Route path="/forums" element={<Forums />} />
             <Route path="/rolodex" element={<Rolodex />} />
             <Route path="/prospects/:id" element={<ProspectDetail />} />
