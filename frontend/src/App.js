@@ -36,8 +36,8 @@ function AppShell() {
         
         {/* Navigation */}
         <div className="flex items-center gap-2 bg-white rounded shadow p-2">
-          <NavLink to="/">Mission Control</NavLink>
-          <NavLink to="/missions">Missions</NavLink>
+          <NavLink to="/">Operations Control</NavLink>
+          <NavLink to="/operations">Operations</NavLink>
           <NavLink to="/forums">Forums</NavLink>
           <NavLink to="/rolodex">Rolodex</NavLink>
           <NavLink to="/hotleads">Hot Leads</NavLink>
