@@ -167,8 +167,8 @@ export default function MissionControl() {
   // Create new thread
   const onNewThread = async () => {
     try {
-      const title = window.prompt("Thread title", "New Thread");
-      const body = { title: title && title.trim() ? title.trim() : "New Thread" };
+      const title = window.prompt("Operation title", "New Operation");
+      const body = { title: title && title.trim() ? title.trim() : "New Operation" };
       const res = await api.post("/mission_control/threads", body);
       const newId = res.data?.thread_id;
       await loadThreads();
