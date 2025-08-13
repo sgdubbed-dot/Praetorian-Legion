@@ -146,7 +146,7 @@ class OperationCreate(BaseModel):
     agents_assigned: List[str] = Field(default_factory=list)
     insights: List[str] = Field(default_factory=list)
 
-class OperationUpdate(BaseModel):
+class CampaignUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: Optional[str] = None
     objective: Optional[str] = None
