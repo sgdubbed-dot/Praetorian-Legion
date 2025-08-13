@@ -17,7 +17,7 @@ load_dotenv('/app/frontend/.env')
 BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://progress-pulse-21.preview.emergentagent.com')
 API_BASE = f"{BACKEND_URL}/api"
 
-class ComprehensiveBackendTester:
+class AugustusKnowledgeIntegrationTester:
     def __init__(self):
         self.results = []
         self.session = requests.Session()
@@ -97,517 +97,409 @@ class ComprehensiveBackendTester:
             self.log_result('health_endpoint', False, 
                           f'Health endpoint failed: {response.status_code if hasattr(response, "status_code") else response}', 
                           None, duration)
-        
-        # Test GET /api/ (root)
-        success, response, duration = self.make_request('GET', '/')
-        if success and response.status_code == 200:
-            try:
-                data = response.json()
-                phoenix_ok = self.verify_phoenix_timestamps(data)
-                self.log_result('root_endpoint', True, 
-                              f'Root endpoint working, Phoenix timestamps: {phoenix_ok}', 
-                              data, duration)
-            except:
-                self.log_result('root_endpoint', False, 'Root endpoint returned invalid JSON', None, duration)
-        else:
-            self.log_result('root_endpoint', False, 
-                          f'Root endpoint failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
 
-    def test_agents_system(self):
-        """Test Agents system - should return 3 agents with proper status"""
-        print("\n=== TESTING AGENTS SYSTEM ===")
+    def test_knowledge_endpoint(self):
+        """Test Praetoria Knowledge Base endpoint - CRITICAL for Augustus integration"""
+        print("\n=== TESTING PRAETORIA KNOWLEDGE ENDPOINT ===")
         
-        # Test GET /api/agents
-        success, response, duration = self.make_request('GET', '/agents')
+        # Test GET /api/knowledge/praetoria
+        success, response, duration = self.make_request('GET', '/knowledge/praetoria')
         if not success or response.status_code != 200:
-            self.log_result('agents_list', False, 
-                          f'GET /api/agents failed: {response.status_code if hasattr(response, "status_code") else response}', 
+            self.log_result('knowledge_endpoint', False, 
+                          f'GET /api/knowledge/praetoria failed: {response.status_code if hasattr(response, "status_code") else response}', 
                           None, duration)
             return
         
         try:
-            agents_data = response.json()
-            if not isinstance(agents_data, list):
-                self.log_result('agents_list', False, 'Agents endpoint returned non-array', agents_data, duration)
+            knowledge_data = response.json()
+            
+            # Verify comprehensive knowledge structure
+            required_keys = [
+                'company', 'mission', 'tagline', 'evolution_stages', 
+                'target_personas', 'competitive_advantages', 'market_problems', 
+                'business_model', 'north_star'
+            ]
+            
+            missing_keys = [key for key in required_keys if key not in knowledge_data]
+            if missing_keys:
+                self.log_result('knowledge_endpoint', False, 
+                              f'Missing required knowledge keys: {missing_keys}', 
+                              knowledge_data, duration)
                 return
             
-            # Check for three core agents
-            agent_names = [a.get('agent_name') for a in agents_data]
-            expected_agents = ['Praefectus', 'Explorator', 'Legatus']
-            missing_agents = [name for name in expected_agents if name not in agent_names]
-            
-            if missing_agents:
-                self.log_result('agents_list', False, 
-                              f'Missing agents: {missing_agents}. Found: {agent_names}', 
-                              agents_data, duration)
+            # Verify evolution stages structure
+            stages = knowledge_data.get('evolution_stages', {})
+            expected_stages = ['stage_1', 'stage_2', 'stage_3']
+            missing_stages = [stage for stage in expected_stages if stage not in stages]
+            if missing_stages:
+                self.log_result('knowledge_endpoint', False, 
+                              f'Missing evolution stages: {missing_stages}', 
+                              knowledge_data, duration)
                 return
             
-            phoenix_ok = self.verify_phoenix_timestamps(agents_data)
-            self.log_result('agents_list', True, 
-                          f'All 3 agents present: {agent_names}, Phoenix timestamps: {phoenix_ok}', 
-                          {'agent_count': len(agents_data), 'agents': agent_names, 'phoenix_timestamps': phoenix_ok}, duration)
+            # Verify target personas structure
+            personas = knowledge_data.get('target_personas', [])
+            if not isinstance(personas, list) or len(personas) < 5:
+                self.log_result('knowledge_endpoint', False, 
+                              f'Target personas incomplete: expected 5+ personas, got {len(personas)}', 
+                              knowledge_data, duration)
+                return
             
-            # Store agents for later tests
-            self.test_data['agents'] = agents_data
+            # Verify competitive advantages
+            advantages = knowledge_data.get('competitive_advantages', [])
+            if not isinstance(advantages, list) or len(advantages) < 4:
+                self.log_result('knowledge_endpoint', False, 
+                              f'Competitive advantages incomplete: expected 4+ advantages, got {len(advantages)}', 
+                              knowledge_data, duration)
+                return
+            
+            # Check for specific key knowledge elements
+            stage_1 = stages.get('stage_1', {})
+            if stage_1.get('status') != 'Live now':
+                self.log_result('knowledge_endpoint', False, 
+                              f'Stage 1 status incorrect: expected "Live now", got "{stage_1.get("status")}"', 
+                              knowledge_data, duration)
+                return
+            
+            # Verify framework-agnostic mention
+            framework_agnostic_found = any('framework-agnostic' in str(adv).lower() or 'langchain' in str(adv).lower() 
+                                         for adv in advantages)
+            if not framework_agnostic_found:
+                self.log_result('knowledge_endpoint', False, 
+                              'Framework-agnostic competitive advantage not found', 
+                              knowledge_data, duration)
+                return
+            
+            self.log_result('knowledge_endpoint', True, 
+                          f'Praetoria knowledge endpoint comprehensive: {len(required_keys)} sections, {len(personas)} personas, {len(advantages)} advantages', 
+                          {
+                              'sections': len(required_keys),
+                              'personas_count': len(personas),
+                              'advantages_count': len(advantages),
+                              'stages_count': len(stages),
+                              'company': knowledge_data.get('company'),
+                              'mission': knowledge_data.get('mission')[:100] + '...' if knowledge_data.get('mission') else None
+                          }, duration)
+            
+            # Store knowledge data for later tests
+            self.test_data['knowledge'] = knowledge_data
             
         except Exception as e:
-            self.log_result('agents_list', False, f'JSON parse error: {e}', None, duration)
-            return
-        
-        # Test agent error scenario
-        print("\n--- Testing Agent Error Scenario ---")
-        success, response, duration = self.make_request('POST', '/scenarios/agent_error_retry', {'minutes': 1})
-        if success and response.status_code == 200:
-            try:
-                error_data = response.json()
-                agent_data = error_data.get('agent', {})
-                if agent_data.get('agent_name') == 'Explorator' and agent_data.get('status_light') == 'red':
-                    self.log_result('agent_error_scenario', True, 
-                                  f'Explorator error scenario triggered successfully, status: {agent_data.get("status_light")}', 
-                                  error_data, duration)
-                else:
-                    self.log_result('agent_error_scenario', False, 
-                                  f'Error scenario failed - unexpected agent data: {agent_data}', 
-                                  error_data, duration)
-            except Exception as e:
-                self.log_result('agent_error_scenario', False, f'JSON parse error: {e}', None, duration)
-        else:
-            self.log_result('agent_error_scenario', False, 
-                          f'Agent error scenario failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
+            self.log_result('knowledge_endpoint', False, f'JSON parse error: {e}', None, duration)
 
-    def test_prospects_rolodex(self):
-        """Test Prospects (Rolodex) endpoints"""
-        print("\n=== TESTING PROSPECTS (ROLODEX) ===")
+    def test_praefectus_knowledge_integration(self):
+        """Test Praefectus Mission Control chat with knowledge integration"""
+        print("\n=== TESTING PRAEFECTUS KNOWLEDGE INTEGRATION ===")
         
-        # Test GET /api/prospects
-        success, response, duration = self.make_request('GET', '/prospects')
-        if success and response.status_code == 200:
-            try:
-                prospects_data = response.json()
-                if isinstance(prospects_data, list):
-                    phoenix_ok = self.verify_phoenix_timestamps(prospects_data)
-                    self.log_result('prospects_list', True, 
-                                  f'Prospects list working, {len(prospects_data)} prospects, Phoenix timestamps: {phoenix_ok}', 
-                                  {'prospect_count': len(prospects_data), 'phoenix_timestamps': phoenix_ok}, duration)
-                else:
-                    self.log_result('prospects_list', False, 'Prospects endpoint returned non-array', prospects_data, duration)
-                    return
-            except Exception as e:
-                self.log_result('prospects_list', False, f'JSON parse error: {e}', None, duration)
-                return
-        else:
-            self.log_result('prospects_list', False, 
-                          f'GET /api/prospects failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-            return
-        
-        # Test POST /api/prospects (create test prospect)
-        test_prospect = {
-            "name_or_alias": "Sarah Chen",
-            "handles": {
-                "linkedin": "https://linkedin.com/in/sarah-chen-ai",
-                "twitter": "@sarahchen_ai"
-            },
-            "priority_state": "warm",
-            "source_type": "manual"
-        }
-        
-        success, response, duration = self.make_request('POST', '/prospects', test_prospect)
-        if success and response.status_code == 200:
-            try:
-                created_prospect = response.json()
-                prospect_id = created_prospect.get('id')
-                if prospect_id:
-                    self.test_data['prospect_id'] = prospect_id
-                    phoenix_ok = self.verify_phoenix_timestamps(created_prospect)
-                    self.log_result('prospects_create', True, 
-                                  f'Prospect created successfully: {prospect_id}, Phoenix timestamps: {phoenix_ok}', 
-                                  created_prospect, duration)
-                else:
-                    self.log_result('prospects_create', False, 'Created prospect missing ID', created_prospect, duration)
-            except Exception as e:
-                self.log_result('prospects_create', False, f'JSON parse error: {e}', None, duration)
-        else:
-            self.log_result('prospects_create', False, 
-                          f'POST /api/prospects failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-
-    def test_hotleads(self):
-        """Test HotLeads endpoints"""
-        print("\n=== TESTING HOTLEADS ===")
-        
-        # Test GET /api/hotleads
-        success, response, duration = self.make_request('GET', '/hotleads')
-        if success and response.status_code == 200:
-            try:
-                hotleads_data = response.json()
-                if isinstance(hotleads_data, list):
-                    phoenix_ok = self.verify_phoenix_timestamps(hotleads_data)
-                    self.log_result('hotleads_list', True, 
-                                  f'HotLeads list working, {len(hotleads_data)} hotleads, Phoenix timestamps: {phoenix_ok}', 
-                                  {'hotlead_count': len(hotleads_data), 'phoenix_timestamps': phoenix_ok}, duration)
-                else:
-                    self.log_result('hotleads_list', False, 'HotLeads endpoint returned non-array', hotleads_data, duration)
-                    return
-            except Exception as e:
-                self.log_result('hotleads_list', False, f'JSON parse error: {e}', None, duration)
-                return
-        else:
-            self.log_result('hotleads_list', False, 
-                          f'GET /api/hotleads failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-            return
-        
-        # Create test hotlead (need prospect_id)
-        prospect_id = self.test_data.get('prospect_id')
-        if not prospect_id:
-            self.log_result('hotleads_create', False, 'No prospect_id available for hotlead creation', None, 0)
-            return
-        
-        test_hotlead = {
-            "prospect_id": prospect_id,
-            "evidence": [
-                {
-                    "type": "social_signal",
-                    "source": "twitter",
-                    "content": "Just posted about needing help with AI automation for her startup",
-                    "timestamp": datetime.now().isoformat()
-                }
-            ],
-            "proposed_script": "Hi Sarah! I saw your tweet about AI automation. We specialize in helping startups implement AI solutions efficiently. Would love to share some insights that might be helpful for your project."
-        }
-        
-        success, response, duration = self.make_request('POST', '/hotleads', test_hotlead)
-        if success and response.status_code == 200:
-            try:
-                created_hotlead = response.json()
-                hotlead_id = created_hotlead.get('id')
-                if hotlead_id:
-                    self.test_data['hotlead_id'] = hotlead_id
-                    phoenix_ok = self.verify_phoenix_timestamps(created_hotlead)
-                    self.log_result('hotleads_create', True, 
-                                  f'HotLead created successfully: {hotlead_id}, Phoenix timestamps: {phoenix_ok}', 
-                                  created_hotlead, duration)
-                    
-                    # Test status update
-                    success, response, duration = self.make_request('POST', f'/hotleads/{hotlead_id}/status', {'status': 'approved'})
-                    if success and response.status_code == 200:
-                        try:
-                            updated_hotlead = response.json()
-                            if updated_hotlead.get('status') == 'approved':
-                                self.log_result('hotleads_status_update', True, 
-                                              f'HotLead status updated to approved', 
-                                              updated_hotlead, duration)
-                            else:
-                                self.log_result('hotleads_status_update', False, 
-                                              f'Status update failed - status not changed', 
-                                              updated_hotlead, duration)
-                        except Exception as e:
-                            self.log_result('hotleads_status_update', False, f'JSON parse error: {e}', None, duration)
-                    else:
-                        self.log_result('hotleads_status_update', False, 
-                                      f'Status update failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                                      None, duration)
-                else:
-                    self.log_result('hotleads_create', False, 'Created hotlead missing ID', created_hotlead, duration)
-            except Exception as e:
-                self.log_result('hotleads_create', False, f'JSON parse error: {e}', None, duration)
-        else:
-            self.log_result('hotleads_create', False, 
-                          f'POST /api/hotleads failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-
-    def test_guardrails(self):
-        """Test Guardrails endpoints"""
-        print("\n=== TESTING GUARDRAILS ===")
-        
-        # Test GET /api/guardrails
-        success, response, duration = self.make_request('GET', '/guardrails')
-        if success and response.status_code == 200:
-            try:
-                guardrails_data = response.json()
-                if isinstance(guardrails_data, list):
-                    phoenix_ok = self.verify_phoenix_timestamps(guardrails_data)
-                    self.log_result('guardrails_list', True, 
-                                  f'Guardrails list working, {len(guardrails_data)} guardrails, Phoenix timestamps: {phoenix_ok}', 
-                                  {'guardrail_count': len(guardrails_data), 'phoenix_timestamps': phoenix_ok}, duration)
-                else:
-                    self.log_result('guardrails_list', False, 'Guardrails endpoint returned non-array', guardrails_data, duration)
-                    return
-            except Exception as e:
-                self.log_result('guardrails_list', False, f'JSON parse error: {e}', None, duration)
-                return
-        else:
-            self.log_result('guardrails_list', False, 
-                          f'GET /api/guardrails failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-            return
-        
-        # Test POST /api/guardrails (create test guardrail)
-        test_guardrail = {
-            "type": "dm_etiquette",
-            "scope": "global",
-            "value": "No cold DMs without prior public interaction",
-            "notes": "Test guardrail for comprehensive testing - always engage publicly first",
-            "dm_etiquette": "Always engage publicly first before sending DMs"
-        }
-        
-        success, response, duration = self.make_request('POST', '/guardrails', test_guardrail)
-        if success and response.status_code == 200:
-            try:
-                created_guardrail = response.json()
-                guardrail_id = created_guardrail.get('id')
-                if guardrail_id:
-                    self.test_data['guardrail_id'] = guardrail_id
-                    phoenix_ok = self.verify_phoenix_timestamps(created_guardrail)
-                    self.log_result('guardrails_create', True, 
-                                  f'Guardrail created successfully: {guardrail_id}, Phoenix timestamps: {phoenix_ok}', 
-                                  created_guardrail, duration)
-                else:
-                    self.log_result('guardrails_create', False, 'Created guardrail missing ID', created_guardrail, duration)
-            except Exception as e:
-                self.log_result('guardrails_create', False, f'JSON parse error: {e}', None, duration)
-        else:
-            self.log_result('guardrails_create', False, 
-                          f'POST /api/guardrails failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-
-    def test_missions(self):
-        """Test Missions endpoints"""
-        print("\n=== TESTING MISSIONS ===")
-        
-        # Test GET /api/missions
-        success, response, duration = self.make_request('GET', '/missions')
-        if success and response.status_code == 200:
-            try:
-                missions_data = response.json()
-                if isinstance(missions_data, list):
-                    phoenix_ok = self.verify_phoenix_timestamps(missions_data)
-                    self.log_result('missions_list', True, 
-                                  f'Missions list working, {len(missions_data)} missions, Phoenix timestamps: {phoenix_ok}', 
-                                  {'mission_count': len(missions_data), 'phoenix_timestamps': phoenix_ok}, duration)
-                    
-                    # Store missions for later tests
-                    self.test_data['missions'] = missions_data
-                else:
-                    self.log_result('missions_list', False, 'Missions endpoint returned non-array', missions_data, duration)
-                    return
-            except Exception as e:
-                self.log_result('missions_list', False, f'JSON parse error: {e}', None, duration)
-                return
-        else:
-            self.log_result('missions_list', False, 
-                          f'GET /api/missions failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-            return
-        
-        # Test POST /api/missions (create test mission)
-        test_mission = {
-            "title": "Comprehensive Backend Test Mission",
-            "objective": "Test mission creation and agent integration for comprehensive backend testing",
-            "posture": "research_only",
-            "state": "draft",
-            "agents_assigned": ["Legatus"],
-            "insights": ["This is a test mission for comprehensive backend testing", "Testing insights migration to insights_rich"]
-        }
-        
-        success, response, duration = self.make_request('POST', '/missions', test_mission)
-        if success and response.status_code == 200:
-            try:
-                created_mission = response.json()
-                mission_id = created_mission.get('id')
-                if mission_id:
-                    self.test_data['mission_id'] = mission_id
-                    phoenix_ok = self.verify_phoenix_timestamps(created_mission)
-                    
-                    # Check if insights_rich was auto-populated
-                    insights_rich = created_mission.get('insights_rich', [])
-                    insights_migration_ok = len(insights_rich) > 0 and isinstance(insights_rich[0], dict)
-                    
-                    self.log_result('missions_create', True, 
-                                  f'Mission created successfully: {mission_id}, insights migration: {insights_migration_ok}, Phoenix timestamps: {phoenix_ok}', 
-                                  created_mission, duration)
-                else:
-                    self.log_result('missions_create', False, 'Created mission missing ID', created_mission, duration)
-            except Exception as e:
-                self.log_result('missions_create', False, f'JSON parse error: {e}', None, duration)
-        else:
-            self.log_result('missions_create', False, 
-                          f'POST /api/missions failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-
-    def test_mission_control(self):
-        """Test Mission Control endpoints"""
-        print("\n=== TESTING MISSION CONTROL ===")
-        
-        # Test GET /api/mission_control/threads
-        success, response, duration = self.make_request('GET', '/mission_control/threads')
-        if success and response.status_code == 200:
-            try:
-                threads_data = response.json()
-                if isinstance(threads_data, list):
-                    phoenix_ok = self.verify_phoenix_timestamps(threads_data)
-                    self.log_result('mission_control_threads', True, 
-                                  f'Mission Control threads working, {len(threads_data)} threads, Phoenix timestamps: {phoenix_ok}', 
-                                  {'thread_count': len(threads_data), 'phoenix_timestamps': phoenix_ok}, duration)
-                else:
-                    self.log_result('mission_control_threads', False, 'Threads endpoint returned non-array', threads_data, duration)
-                    return
-            except Exception as e:
-                self.log_result('mission_control_threads', False, f'JSON parse error: {e}', None, duration)
-                return
-        else:
-            self.log_result('mission_control_threads', False, 
-                          f'GET /api/mission_control/threads failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-            return
-        
-        # Test POST /api/mission_control/threads (create test thread)
+        # First create a thread for testing
         test_thread = {
-            "title": "Comprehensive Backend Test Thread",
-            "mission_id": self.test_data.get('mission_id')
+            "title": "Augustus Knowledge Integration Test"
         }
         
         success, response, duration = self.make_request('POST', '/mission_control/threads', test_thread)
-        if success and response.status_code == 200:
-            try:
-                created_thread = response.json()
-                thread_id = created_thread.get('thread_id')
-                if thread_id:
-                    self.test_data['thread_id'] = thread_id
-                    self.log_result('mission_control_create_thread', True, 
-                                  f'Thread created successfully: {thread_id}', 
-                                  created_thread, duration)
+        if not success or response.status_code != 200:
+            self.log_result('praefectus_thread_creation', False, 
+                          f'Thread creation failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                          None, duration)
+            return
+        
+        try:
+            created_thread = response.json()
+            thread_id = created_thread.get('thread_id')
+            if not thread_id:
+                self.log_result('praefectus_thread_creation', False, 'Thread creation missing thread_id', created_thread, duration)
+                return
+            
+            self.test_data['thread_id'] = thread_id
+            self.log_result('praefectus_thread_creation', True, 
+                          f'Thread created for knowledge testing: {thread_id}', 
+                          created_thread, duration)
+            
+        except Exception as e:
+            self.log_result('praefectus_thread_creation', False, f'JSON parse error: {e}', None, duration)
+            return
+        
+        # Test knowledge integration with specific questions
+        knowledge_test_questions = [
+            {
+                "question": "What is Praetoria and what problem does it solve in the agent economy?",
+                "expected_keywords": ["praetoria", "agent economy", "visibility", "control", "monitoring", "observability"],
+                "test_name": "praetoria_overview_knowledge"
+            },
+            {
+                "question": "Explain Praetoria's 3-stage evolution roadmap and current status.",
+                "expected_keywords": ["stage 1", "stage 2", "stage 3", "observability", "registry", "control infrastructure", "live now"],
+                "test_name": "evolution_stages_knowledge"
+            },
+            {
+                "question": "Who are Praetoria's target personas and what pain points do we solve for developers?",
+                "expected_keywords": ["developers", "startups", "enterprises", "debugging", "observability", "trace", "monitoring"],
+                "test_name": "target_personas_knowledge"
+            },
+            {
+                "question": "What makes Praetoria different from competitors? What are our competitive advantages?",
+                "expected_keywords": ["framework-agnostic", "langchain", "crewai", "autogen", "agent-native", "privacy-by-design"],
+                "test_name": "competitive_advantages_knowledge"
+            },
+            {
+                "question": "How does Praetoria support different agent frameworks like LangChain, CrewAI, and AutoGen?",
+                "expected_keywords": ["framework-agnostic", "langchain", "crewai", "autogen", "langgraph", "on-chain"],
+                "test_name": "framework_support_knowledge"
+            }
+        ]
+        
+        for test_case in knowledge_test_questions:
+            print(f"\n--- Testing {test_case['test_name']} ---")
+            
+            test_message = {
+                "thread_id": thread_id,
+                "text": test_case["question"]
+            }
+            
+            success, response, duration = self.make_request('POST', '/mission_control/message', test_message)
+            if success and response.status_code == 200:
+                try:
+                    message_response = response.json()
+                    assistant_text = message_response.get('assistant', {}).get('text', '')
                     
-                    # Test sending a message to Praefectus
-                    test_message = {
-                        "thread_id": thread_id,
-                        "text": "Hello Praefectus, this is a comprehensive backend test. Please confirm you can respond to messages in Mission Control."
-                    }
+                    if not assistant_text:
+                        self.log_result(test_case['test_name'], False, 
+                                      'Praefectus did not respond to knowledge question', 
+                                      message_response, duration)
+                        continue
                     
-                    success, response, duration = self.make_request('POST', '/mission_control/message', test_message)
-                    if success and response.status_code == 200:
-                        try:
-                            message_response = response.json()
-                            assistant_text = message_response.get('assistant', {}).get('text', '')
-                            if assistant_text:
-                                self.log_result('mission_control_chat', True, 
-                                              f'Praefectus responded: {len(assistant_text)} chars', 
-                                              message_response, duration)
-                            else:
-                                self.log_result('mission_control_chat', False, 
-                                              'Praefectus did not respond', 
-                                              message_response, duration)
-                        except Exception as e:
-                            self.log_result('mission_control_chat', False, f'JSON parse error: {e}', None, duration)
+                    # Check for expected keywords in response
+                    assistant_lower = assistant_text.lower()
+                    found_keywords = [kw for kw in test_case['expected_keywords'] if kw.lower() in assistant_lower]
+                    missing_keywords = [kw for kw in test_case['expected_keywords'] if kw.lower() not in assistant_lower]
+                    
+                    # Consider test successful if at least 50% of keywords are found
+                    success_threshold = len(test_case['expected_keywords']) * 0.5
+                    knowledge_test_passed = len(found_keywords) >= success_threshold
+                    
+                    if knowledge_test_passed:
+                        self.log_result(test_case['test_name'], True, 
+                                      f'Praefectus demonstrated knowledge: {len(found_keywords)}/{len(test_case["expected_keywords"])} keywords found, {len(assistant_text)} chars', 
+                                      {
+                                          'response_length': len(assistant_text),
+                                          'found_keywords': found_keywords,
+                                          'response_preview': assistant_text[:200] + '...' if len(assistant_text) > 200 else assistant_text
+                                      }, duration)
                     else:
-                        self.log_result('mission_control_chat', False, 
-                                      f'Message sending failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                                      None, duration)
-                else:
-                    self.log_result('mission_control_create_thread', False, 'Created thread missing thread_id', created_thread, duration)
-            except Exception as e:
-                self.log_result('mission_control_create_thread', False, f'JSON parse error: {e}', None, duration)
-        else:
-            self.log_result('mission_control_create_thread', False, 
-                          f'POST /api/mission_control/threads failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
+                        self.log_result(test_case['test_name'], False, 
+                                      f'Insufficient knowledge demonstrated: {len(found_keywords)}/{len(test_case["expected_keywords"])} keywords found. Missing: {missing_keywords}', 
+                                      {
+                                          'response_length': len(assistant_text),
+                                          'found_keywords': found_keywords,
+                                          'missing_keywords': missing_keywords,
+                                          'response_preview': assistant_text[:200] + '...' if len(assistant_text) > 200 else assistant_text
+                                      }, duration)
+                    
+                except Exception as e:
+                    self.log_result(test_case['test_name'], False, f'JSON parse error: {e}', None, duration)
+            else:
+                self.log_result(test_case['test_name'], False, 
+                              f'Message sending failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                              None, duration)
+            
+            # Small delay between questions to avoid rate limiting
+            time.sleep(1)
 
-    def test_events_endpoint(self):
-        """Test Events endpoint"""
-        print("\n=== TESTING EVENTS ===")
+    def test_mission_control_system_prompt_integration(self):
+        """Test that Praefectus system prompt includes comprehensive Praetoria knowledge"""
+        print("\n=== TESTING SYSTEM PROMPT INTEGRATION ===")
         
-        # Test GET /api/events
-        success, response, duration = self.make_request('GET', '/events')
+        thread_id = self.test_data.get('thread_id')
+        if not thread_id:
+            self.log_result('system_prompt_integration', False, 'No thread_id available for system prompt testing', None, 0)
+            return
+        
+        # Test with a meta question about Praefectus's role and knowledge
+        meta_question = {
+            "thread_id": thread_id,
+            "text": "As Praefectus, please describe your role in Augustus and your understanding of Praetoria's mission. What specific knowledge do you have about the agent economy?"
+        }
+        
+        success, response, duration = self.make_request('POST', '/mission_control/message', meta_question)
         if success and response.status_code == 200:
             try:
-                events_data = response.json()
-                if isinstance(events_data, list):
-                    phoenix_ok = self.verify_phoenix_timestamps(events_data)
-                    self.log_result('events_list', True, 
-                                  f'Events list working, {len(events_data)} events, Phoenix timestamps: {phoenix_ok}', 
-                                  {'event_count': len(events_data), 'phoenix_timestamps': phoenix_ok}, duration)
+                message_response = response.json()
+                assistant_text = message_response.get('assistant', {}).get('text', '')
+                
+                if not assistant_text:
+                    self.log_result('system_prompt_integration', False, 
+                                  'Praefectus did not respond to meta question', 
+                                  message_response, duration)
+                    return
+                
+                # Check for system prompt integration indicators
+                system_prompt_indicators = [
+                    "praefectus", "strategic ai commander", "augustus", "praetoria",
+                    "agent economy", "observability", "control layer", "mission control",
+                    "visibility", "monitoring", "autonomous ai agents"
+                ]
+                
+                assistant_lower = assistant_text.lower()
+                found_indicators = [ind for ind in system_prompt_indicators if ind.lower() in assistant_lower]
+                
+                # Check for role understanding
+                role_understanding = any(phrase in assistant_lower for phrase in [
+                    "strategic", "commander", "orchestrate", "intelligence", "operations"
+                ])
+                
+                # Check for Praetoria mission understanding
+                mission_understanding = any(phrase in assistant_lower for phrase in [
+                    "visibility", "control layer", "agent economy", "monitoring", "observability"
+                ])
+                
+                integration_score = len(found_indicators)
+                integration_passed = integration_score >= 6 and role_understanding and mission_understanding
+                
+                if integration_passed:
+                    self.log_result('system_prompt_integration', True, 
+                                  f'System prompt integration verified: {integration_score} indicators, role & mission understanding confirmed', 
+                                  {
+                                      'integration_score': integration_score,
+                                      'found_indicators': found_indicators,
+                                      'role_understanding': role_understanding,
+                                      'mission_understanding': mission_understanding,
+                                      'response_length': len(assistant_text),
+                                      'response_preview': assistant_text[:300] + '...' if len(assistant_text) > 300 else assistant_text
+                                  }, duration)
                 else:
-                    self.log_result('events_list', False, 'Events endpoint returned non-array', events_data, duration)
+                    self.log_result('system_prompt_integration', False, 
+                                  f'System prompt integration insufficient: {integration_score} indicators, role: {role_understanding}, mission: {mission_understanding}', 
+                                  {
+                                      'integration_score': integration_score,
+                                      'found_indicators': found_indicators,
+                                      'role_understanding': role_understanding,
+                                      'mission_understanding': mission_understanding,
+                                      'response_length': len(assistant_text),
+                                      'response_preview': assistant_text[:300] + '...' if len(assistant_text) > 300 else assistant_text
+                                  }, duration)
+                
             except Exception as e:
-                self.log_result('events_list', False, f'JSON parse error: {e}', None, duration)
+                self.log_result('system_prompt_integration', False, f'JSON parse error: {e}', None, duration)
         else:
-            self.log_result('events_list', False, 
-                          f'GET /api/events failed: {response.status_code if hasattr(response, "status_code") else response}', 
+            self.log_result('system_prompt_integration', False, 
+                          f'Meta question failed: {response.status_code if hasattr(response, "status_code") else response}', 
                           None, duration)
 
-    def test_findings_endpoints(self):
-        """Test Findings endpoints"""
-        print("\n=== TESTING FINDINGS ===")
+    def test_agent_economy_expertise(self):
+        """Test Praefectus expertise on agent economy challenges and solutions"""
+        print("\n=== TESTING AGENT ECONOMY EXPERTISE ===")
         
-        # Test GET /api/findings
-        success, response, duration = self.make_request('GET', '/findings')
-        if success and response.status_code == 200:
-            try:
-                findings_data = response.json()
-                if isinstance(findings_data, list):
-                    phoenix_ok = self.verify_phoenix_timestamps(findings_data)
-                    self.log_result('findings_list', True, 
-                                  f'Findings list working, {len(findings_data)} findings, Phoenix timestamps: {phoenix_ok}', 
-                                  {'finding_count': len(findings_data), 'phoenix_timestamps': phoenix_ok}, duration)
-                else:
-                    self.log_result('findings_list', False, 'Findings endpoint returned non-array', findings_data, duration)
-            except Exception as e:
-                self.log_result('findings_list', False, f'JSON parse error: {e}', None, duration)
-        else:
-            self.log_result('findings_list', False, 
-                          f'GET /api/findings failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
-
-    def test_forums_endpoints(self):
-        """Test Forums endpoints"""
-        print("\n=== TESTING FORUMS ===")
+        thread_id = self.test_data.get('thread_id')
+        if not thread_id:
+            self.log_result('agent_economy_expertise', False, 'No thread_id available for expertise testing', None, 0)
+            return
         
-        # Test GET /api/forums
-        success, response, duration = self.make_request('GET', '/forums')
-        if success and response.status_code == 200:
-            try:
-                forums_data = response.json()
-                if isinstance(forums_data, list):
-                    phoenix_ok = self.verify_phoenix_timestamps(forums_data)
-                    self.log_result('forums_list', True, 
-                                  f'Forums list working, {len(forums_data)} forums, Phoenix timestamps: {phoenix_ok}', 
-                                  {'forum_count': len(forums_data), 'phoenix_timestamps': phoenix_ok}, duration)
-                else:
-                    self.log_result('forums_list', False, 'Forums endpoint returned non-array', forums_data, duration)
-            except Exception as e:
-                self.log_result('forums_list', False, f'JSON parse error: {e}', None, duration)
-        else:
-            self.log_result('forums_list', False, 
-                          f'GET /api/forums failed: {response.status_code if hasattr(response, "status_code") else response}', 
-                          None, duration)
+        # Test with complex agent economy scenarios
+        expertise_questions = [
+            {
+                "question": "A startup has deployed 50 AI agents across different frameworks but can't debug when they fail. How does Praetoria solve this?",
+                "expected_concepts": ["trace logs", "debugging", "observability", "framework-agnostic", "forensics", "root-cause"],
+                "test_name": "debugging_expertise"
+            },
+            {
+                "question": "An enterprise needs governance and compliance for their agent fleet. What does Praetoria offer for Stage 2 and 3?",
+                "expected_concepts": ["governance", "compliance", "audit logs", "registry", "identity", "policy enforcement"],
+                "test_name": "governance_expertise"
+            },
+            {
+                "question": "How does Praetoria address the challenge of agent identity and reputation in a multi-vendor environment?",
+                "expected_concepts": ["agent identity", "reputation", "registry", "verification", "praetoria agent id", "paid"],
+                "test_name": "identity_expertise"
+            }
+        ]
+        
+        for test_case in expertise_questions:
+            print(f"\n--- Testing {test_case['test_name']} ---")
+            
+            test_message = {
+                "thread_id": thread_id,
+                "text": test_case["question"]
+            }
+            
+            success, response, duration = self.make_request('POST', '/mission_control/message', test_message)
+            if success and response.status_code == 200:
+                try:
+                    message_response = response.json()
+                    assistant_text = message_response.get('assistant', {}).get('text', '')
+                    
+                    if not assistant_text:
+                        self.log_result(test_case['test_name'], False, 
+                                      'Praefectus did not respond to expertise question', 
+                                      message_response, duration)
+                        continue
+                    
+                    # Check for expected concepts and expertise depth
+                    assistant_lower = assistant_text.lower()
+                    found_concepts = [concept for concept in test_case['expected_concepts'] if concept.lower() in assistant_lower]
+                    
+                    # Check for solution-oriented response (not just generic AI talk)
+                    solution_indicators = ["praetoria", "stage", "mission control", "trace", "registry", "control infrastructure"]
+                    solution_mentions = [ind for ind in solution_indicators if ind.lower() in assistant_lower]
+                    
+                    # Expertise criteria: good concept coverage + solution focus + sufficient detail
+                    concept_coverage = len(found_concepts) / len(test_case['expected_concepts'])
+                    has_solution_focus = len(solution_mentions) >= 2
+                    sufficient_detail = len(assistant_text) >= 150  # Detailed response expected
+                    
+                    expertise_demonstrated = concept_coverage >= 0.4 and has_solution_focus and sufficient_detail
+                    
+                    if expertise_demonstrated:
+                        self.log_result(test_case['test_name'], True, 
+                                      f'Agent economy expertise demonstrated: {len(found_concepts)}/{len(test_case["expected_concepts"])} concepts, solution-focused, {len(assistant_text)} chars', 
+                                      {
+                                          'concept_coverage': f"{len(found_concepts)}/{len(test_case['expected_concepts'])}",
+                                          'found_concepts': found_concepts,
+                                          'solution_mentions': solution_mentions,
+                                          'response_length': len(assistant_text),
+                                          'response_preview': assistant_text[:250] + '...' if len(assistant_text) > 250 else assistant_text
+                                      }, duration)
+                    else:
+                        self.log_result(test_case['test_name'], False, 
+                                      f'Insufficient expertise: {len(found_concepts)}/{len(test_case["expected_concepts"])} concepts, solution focus: {has_solution_focus}, detail: {sufficient_detail}', 
+                                      {
+                                          'concept_coverage': f"{len(found_concepts)}/{len(test_case['expected_concepts'])}",
+                                          'found_concepts': found_concepts,
+                                          'solution_mentions': solution_mentions,
+                                          'response_length': len(assistant_text),
+                                          'response_preview': assistant_text[:250] + '...' if len(assistant_text) > 250 else assistant_text
+                                      }, duration)
+                    
+                except Exception as e:
+                    self.log_result(test_case['test_name'], False, f'JSON parse error: {e}', None, duration)
+            else:
+                self.log_result(test_case['test_name'], False, 
+                              f'Expertise question failed: {response.status_code if hasattr(response, "status_code") else response}', 
+                              None, duration)
+            
+            # Small delay between questions
+            time.sleep(1)
 
-    def run_comprehensive_test(self):
-        """Run all comprehensive backend tests"""
-        print(f"Starting Comprehensive Backend Testing - Base URL: {API_BASE}")
+    def run_augustus_knowledge_integration_test(self):
+        """Run comprehensive Augustus knowledge integration test"""
+        print(f"Starting Augustus Knowledge Integration Testing - Base URL: {API_BASE}")
+        print("=" * 100)
+        print("FOCUS: Verify Praetoria knowledge integration in Praefectus system and knowledge endpoints")
         print("=" * 100)
         
         start_time = time.time()
         
-        # Run all test suites
+        # Run knowledge integration test suites
         self.test_health_endpoints()
-        self.test_agents_system()
-        self.test_prospects_rolodex()
-        self.test_hotleads()
-        self.test_guardrails()
-        self.test_missions()
-        self.test_mission_control()
-        self.test_events_endpoint()
-        self.test_findings_endpoints()
-        self.test_forums_endpoints()
+        self.test_knowledge_endpoint()
+        self.test_praefectus_knowledge_integration()
+        self.test_mission_control_system_prompt_integration()
+        self.test_agent_economy_expertise()
         
         total_duration = time.time() - start_time
         
         # Summary
         print("\n" + "=" * 100)
-        print("COMPREHENSIVE TEST EXECUTION SUMMARY")
+        print("AUGUSTUS KNOWLEDGE INTEGRATION TEST SUMMARY")
         print("=" * 100)
         
         passed = sum(1 for r in self.results if r['success'])
@@ -619,27 +511,49 @@ class ComprehensiveBackendTester:
         print(f"Success Rate: {(passed/len(self.results)*100):.1f}%")
         print(f"Total Duration: {total_duration:.2f}s")
         
+        # Categorize results
+        knowledge_tests = [r for r in self.results if 'knowledge' in r['test']]
+        praefectus_tests = [r for r in self.results if 'praefectus' in r['test'] or 'system_prompt' in r['test']]
+        expertise_tests = [r for r in self.results if 'expertise' in r['test'] or any(x in r['test'] for x in ['debugging', 'governance', 'identity'])]
+        
+        print(f"\nKNOWLEDGE ENDPOINT TESTS: {sum(1 for r in knowledge_tests if r['success'])}/{len(knowledge_tests)} passed")
+        print(f"PRAEFECTUS INTEGRATION TESTS: {sum(1 for r in praefectus_tests if r['success'])}/{len(praefectus_tests)} passed")
+        print(f"AGENT ECONOMY EXPERTISE TESTS: {sum(1 for r in expertise_tests if r['success'])}/{len(expertise_tests)} passed")
+        
         if failed > 0:
             print("\nFAILED TESTS:")
             for result in self.results:
                 if not result['success']:
                     print(f"❌ {result['test']}: {result['message']}")
         
-        # Phoenix timestamp verification summary
-        phoenix_tests = [r for r in self.results if 'phoenix_timestamps' in str(r.get('response_data', {}))]
-        phoenix_passed = sum(1 for r in phoenix_tests if r.get('response_data', {}).get('phoenix_timestamps', False))
-        print(f"\nPHOENIX TIMESTAMPS: {phoenix_passed}/{len(phoenix_tests)} endpoints verified with Phoenix timezone (-07:00)")
+        # Knowledge integration assessment
+        critical_tests = ['knowledge_endpoint', 'praetoria_overview_knowledge', 'system_prompt_integration']
+        critical_passed = sum(1 for r in self.results if r['test'] in critical_tests and r['success'])
+        
+        print(f"\nCRITICAL KNOWLEDGE INTEGRATION: {critical_passed}/{len(critical_tests)} core tests passed")
+        
+        if critical_passed == len(critical_tests):
+            print("🎉 AUGUSTUS KNOWLEDGE INTEGRATION: SUCCESSFUL")
+            print("✅ Praetoria knowledge endpoint comprehensive")
+            print("✅ Praefectus demonstrates expert knowledge")
+            print("✅ System prompt integration verified")
+        else:
+            print("⚠️  AUGUSTUS KNOWLEDGE INTEGRATION: NEEDS ATTENTION")
+            print("❌ Critical knowledge integration tests failed")
         
         # Test data summary
-        print(f"\nTEST DATA CREATED:")
-        for key, value in self.test_data.items():
-            if isinstance(value, str):
-                print(f"- {key}: {value}")
-            elif isinstance(value, list):
-                print(f"- {key}: {len(value)} items")
+        if self.test_data:
+            print(f"\nTEST DATA CREATED:")
+            for key, value in self.test_data.items():
+                if isinstance(value, str):
+                    print(f"- {key}: {value}")
+                elif isinstance(value, dict) and key == 'knowledge':
+                    print(f"- {key}: {value.get('company', 'N/A')} knowledge base loaded")
+                elif isinstance(value, list):
+                    print(f"- {key}: {len(value)} items")
         
         return self.results, passed, failed
 
 if __name__ == "__main__":
-    tester = ComprehensiveBackendTester()
-    results, passed, failed = tester.run_comprehensive_test()
+    tester = AugustusKnowledgeIntegrationTester()
+    results, passed, failed = tester.run_augustus_knowledge_integration_test()
