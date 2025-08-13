@@ -8,6 +8,7 @@ import Rolodex from "./pages/Rolodex";
 import ProspectDetail from "./pages/ProspectDetail";
 import HotLeads from "./pages/HotLeads";
 import HotLeadDetail from "./pages/HotLeadDetail";
+import Agents from "./pages/Agents";
 import Guardrails from "./pages/Guardrails";
 import GuardrailDetail from "./pages/GuardrailDetail";
 import Exports from "./pages/Exports";
