@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Praetorian Legion - Mission Control Thread Linking & Findings Snapshot
-Focus: Execute specific 6-step flow to link latest thread to mission and create findings snapshot
+Backend API Testing for Praetorian Legion - Comprehensive Testing After Major Fixes
+Focus: Test all critical endpoints including Agents, Prospects, HotLeads, Guardrails, Missions, Mission Control
 """
 
 import requests
